@@ -43,9 +43,12 @@ class BookingApiIntegrationTest {
 
     @Test
     void availabilityReturnsSlots() throws Exception {
-        mockMvc.perform(
-                get("/availability").param("serviceId", "1").param("pincode", "400001").param("date", "2026-10-20"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.availableSlots").isArray());
+        MvcResult result = mockMvc
+                .perform(get("/availability").param("serviceId", "1").param("pincode", "400001").param("date",
+                        "2026-10-20"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.availableSlots").isArray()).andReturn();
+        String body = result.getResponse().getContentAsString();
+        assertThat(body).doesNotContain("T23:00").doesNotContain("T23:30");
     }
 
     @Test
@@ -310,11 +313,24 @@ class BookingApiIntegrationTest {
     }
 
     @Test
-    void technicianScheduleStatusFilter() throws Exception {
-        long id = createBooking("sched-filter", 1, "400001", "2026-10-20T10:00:00+05:30");
+    void technicianScheduleIncludesCancelledByDefault() throws Exception {
+        MvcResult created = mockMvc.perform(post("/bookings").header("Idempotency-Key", "sched-filter")
+                .contentType(MediaType.APPLICATION_JSON).content(bookingBody(1, "400001", "2026-10-20T18:00:00+05:30")))
+                .andExpect(status().isCreated()).andReturn();
+        long id = ((Number) com.jayway.jsonpath.JsonPath.read(created.getResponse().getContentAsString(), "$.id"))
+                .longValue();
+        long technicianId = ((Number) com.jayway.jsonpath.JsonPath.read(created.getResponse().getContentAsString(),
+                "$.technicianId")).longValue();
         mockMvc.perform(asCustomer(DEFAULT_PHONE, post("/bookings/" + id + "/cancel"))).andExpect(status().isOk());
-        mockMvc.perform(get("/technicians/1/schedule").param("date", "2026-10-20").param("status", "CANCELLED"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.bookings.content[0].status").value("CANCELLED"));
+
+        MvcResult schedule = mockMvc
+                .perform(get("/technicians/" + technicianId + "/schedule").param("date", "2026-10-20"))
+                .andExpect(status().isOk()).andReturn();
+        assertThat(scheduleBookingIds(schedule)).contains(id);
+
+        mockMvc.perform(get("/technicians/" + technicianId + "/schedule").param("date", "2026-10-20").param("status",
+                "CANCELLED")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.bookings.content[0].status").value("CANCELLED"));
     }
 
     /** {@code startDate} / {@code endDate} widen the IST window beyond the required {@code date} anchor. */
@@ -389,6 +405,16 @@ class BookingApiIntegrationTest {
     }
 
     @Test
+    void rejectsBookingThatEndsOutsideShift() throws Exception {
+        expectApiError(
+                mockMvc.perform(post("/bookings").header("Idempotency-Key", "outside-shift")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bookingBody(1, "400001", "2026-10-20T23:00:00+05:30"))),
+                409, "CONFLICT", "NO_TECHNICIAN_AVAILABLE", "No technician is available for the requested slot.",
+                "/bookings");
+    }
+
+    @Test
     void rejectsBookingThatViolatesTravelBuffer() throws Exception {
         mockMvc.perform(post("/bookings").header("Idempotency-Key", "buffer-base")
                 .contentType(MediaType.APPLICATION_JSON).content(bookingBody(2, "400058", "2026-10-20T10:00:00+05:30")))
@@ -453,10 +479,7 @@ class BookingApiIntegrationTest {
         expectApiError(
                 mockMvc.perform(post("/bookings").header("Idempotency-Key", "bad-tz")
                         .contentType(MediaType.APPLICATION_JSON).content(body)),
-                400,
-                "BAD_REQUEST",
-                "VALIDATION_ERROR",
-                "Field 'startTime': must use IST (Asia/Kolkata or +05:30)",
+                400, "BAD_REQUEST", "VALIDATION_ERROR", "Field 'startTime': must use IST (Asia/Kolkata or +05:30)",
                 "/bookings");
     }
 

@@ -7,7 +7,7 @@ import com.booking.enums.Skill;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalTime;
+import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.List;
 import org.springframework.stereotype.Component;
@@ -39,12 +39,17 @@ public class SchedulingRules {
         return !start.isBefore(now.plus(MIN_HORIZON)) && !start.isAfter(now.plus(MAX_HORIZON));
     }
 
+    /**
+     * The job must sit inside the shift on the start instant's IST date. An end after midnight is outside the shift,
+     * because comparing {@code LocalTime} alone would treat 00:00 as earlier than the shift end.
+     */
     public boolean fitsShift(TechnicianEntity tech, Instant start, Instant end) {
-        LocalTime shiftStart = tech.getShiftStart();
-        LocalTime shiftEnd = tech.getShiftEnd();
-        LocalTime startLocal = timeService.toIst(start).toLocalTime();
-        LocalTime endLocal = timeService.toIst(end).toLocalTime();
-        return !startLocal.isBefore(shiftStart) && !endLocal.isAfter(shiftEnd);
+        ZonedDateTime startIst = timeService.toIst(start);
+        ZonedDateTime endIst = timeService.toIst(end);
+        LocalDate shiftDate = startIst.toLocalDate();
+        ZonedDateTime shiftStart = shiftDate.atTime(tech.getShiftStart()).atZone(TimeService.ZONE);
+        ZonedDateTime shiftEnd = shiftDate.atTime(tech.getShiftEnd()).atZone(TimeService.ZONE);
+        return !startIst.isBefore(shiftStart) && !endIst.isAfter(shiftEnd);
     }
 
     public boolean hasSkill(TechnicianEntity tech, Skill skill) {

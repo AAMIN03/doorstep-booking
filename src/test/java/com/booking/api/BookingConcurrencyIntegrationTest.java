@@ -112,4 +112,89 @@ class BookingConcurrencyIntegrationTest {
                 .filter(b -> b.getStartTime().equals(Instant.parse("2026-10-20T10:30:00Z"))).count();
         assertThat(bookingsForSlot).isEqualTo(1);
     }
+
+    @Test
+    void concurrentAdjacentSlotsRespectTravelBuffer() throws Exception {
+        String earlier = """
+                {"customerPhone":"9876543210","serviceId":1,"pincode":"400058","startTime":"2026-10-19T10:00:00+05:30"}
+                """;
+        String later = """
+                {"customerPhone":"9876543211","serviceId":1,"pincode":"400058","startTime":"2026-10-19T11:00:00+05:30"}
+                """;
+        List<Integer> statuses = race(earlier, "buffer-race-early", later, "buffer-race-late");
+        long created = statuses.stream().filter(status -> status == 201).count();
+        long rejected = statuses.stream().filter(status -> status == 409).count();
+        assertThat(created).isEqualTo(1);
+        assertThat(rejected).isEqualTo(1);
+        long confirmed = bookingRepository.findAll().stream().filter(b -> b.getStatus() == BookingStatus.CONFIRMED)
+                .filter(b -> b.getStartTime().equals(Instant.parse("2026-10-19T04:30:00Z"))
+                        || b.getStartTime().equals(Instant.parse("2026-10-19T05:30:00Z")))
+                .count();
+        assertThat(confirmed).isEqualTo(1);
+    }
+
+    @Test
+    void concurrentNonOverlappingSlotsUseDifferentTechnicians() throws Exception {
+        String morning = """
+                {"customerPhone":"9876543212","serviceId":1,"pincode":"400001","startTime":"2026-10-19T10:00:00+05:30"}
+                """;
+        String afternoon = """
+                {"customerPhone":"9876543213","serviceId":1,"pincode":"400001","startTime":"2026-10-19T14:00:00+05:30"}
+                """;
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        List<Future<Long>> futures = new ArrayList<>();
+        for (String[] request : new String[][] { { "spread-am", morning }, { "spread-pm", afternoon } }) {
+            futures.add(pool.submit(() -> {
+                ready.countDown();
+                start.await();
+                MvcResult result = mockMvc.perform(post("/bookings").header("Idempotency-Key", request[0])
+                        .contentType(MediaType.APPLICATION_JSON).content(request[1])).andReturn();
+                if (result.getResponse().getStatus() != 201) {
+                    throw new IllegalStateException("expected 201, got " + result.getResponse().getStatus() + " "
+                            + result.getResponse().getContentAsString());
+                }
+                return ((Number) com.jayway.jsonpath.JsonPath.read(result.getResponse().getContentAsString(),
+                        "$.technicianId")).longValue();
+            }));
+        }
+        ready.await();
+        start.countDown();
+        try {
+            Long first = futures.get(0).get();
+            Long second = futures.get(1).get();
+            assertThat(first).isNotEqualTo(second);
+        } finally {
+            pool.shutdown();
+        }
+    }
+
+    private List<Integer> race(String firstBody, String firstKey, String secondBody, String secondKey)
+            throws Exception {
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        List<Future<Integer>> futures = new ArrayList<>();
+        for (String[] request : new String[][] { { firstKey, firstBody }, { secondKey, secondBody } }) {
+            futures.add(pool.submit(() -> {
+                ready.countDown();
+                start.await();
+                MvcResult result = mockMvc.perform(post("/bookings").header("Idempotency-Key", request[0])
+                        .contentType(MediaType.APPLICATION_JSON).content(request[1])).andReturn();
+                return result.getResponse().getStatus();
+            }));
+        }
+        ready.await();
+        start.countDown();
+        try {
+            List<Integer> statuses = new ArrayList<>();
+            for (Future<Integer> future : futures) {
+                statuses.add(future.get());
+            }
+            return statuses;
+        } finally {
+            pool.shutdown();
+        }
+    }
 }

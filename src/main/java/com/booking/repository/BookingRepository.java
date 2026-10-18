@@ -61,19 +61,13 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Long> {
             where b.technician.id = :techId
               and b.startTime >= :dayStart
               and b.startTime < :dayEnd
-              and (
-                (:status is not null and b.status = :status)
-                or (:status is null and b.status <> 'CANCELLED')
-              )
+              and (:status is null or b.status = :status)
             """, countQuery = """
             select count(b) from BookingEntity b
             where b.technician.id = :techId
               and b.startTime >= :dayStart
               and b.startTime < :dayEnd
-              and (
-                (:status is not null and b.status = :status)
-                or (:status is null and b.status <> 'CANCELLED')
-              )
+              and (:status is null or b.status = :status)
             """)
     Page<Long> findIdsForTechnicianSchedule(@Param("techId") Long techId, @Param("status") BookingStatus status,
             @Param("dayStart") Instant dayStart, @Param("dayEnd") Instant dayEnd, Pageable pageable);
@@ -88,15 +82,20 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Long> {
     List<BookingEntity> findActiveInRange(@Param("techIds") List<Long> techIds, @Param("rangeStart") Instant rangeStart,
             @Param("rangeEnd") Instant rangeEnd);
 
+    /**
+     * Locks non-cancelled bookings overlapping {@code [rangeStart, rangeEnd)} for assignment. Confirmed rows block
+     * slots; completed rows still count toward that day's load. One locking read so the count cannot miss a commit that
+     * a later non-locking query would hide under repeatable read.
+     */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select b from BookingEntity b
             where b.technician.id in :techIds
-              and b.status = 'CONFIRMED'
+              and b.status <> 'CANCELLED'
               and b.endTime > :rangeStart
               and b.startTime < :rangeEnd
             """)
-    List<BookingEntity> findActiveInRangeForUpdate(@Param("techIds") List<Long> techIds,
+    List<BookingEntity> findNonCancelledInRangeForUpdate(@Param("techIds") List<Long> techIds,
             @Param("rangeStart") Instant rangeStart, @Param("rangeEnd") Instant rangeEnd);
 
     @Query("""
@@ -110,13 +109,4 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Long> {
     List<BookingEntity> findScheduleForDay(@Param("techId") Long techId, @Param("dayStart") Instant dayStart,
             @Param("dayEnd") Instant dayEnd);
 
-    @Query("""
-            select count(b) from BookingEntity b
-            where b.technician.id = :techId
-              and b.status <> :cancelled
-              and b.startTime >= :dayStart
-              and b.startTime < :dayEnd
-            """)
-    long countActiveForDay(@Param("techId") Long techId, @Param("dayStart") Instant dayStart,
-            @Param("dayEnd") Instant dayEnd, @Param("cancelled") BookingStatus cancelled);
 }

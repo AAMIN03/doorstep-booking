@@ -15,9 +15,8 @@ Bullets and reasoning for the Amara Raja–style review. Implementation detail l
 1. Resolve eligible technicians (zone + skill).
 2. `SELECT … FOR UPDATE` on those technician rows, **always in ascending id order** (deadlock avoidance).
 3. `SELECT … FOR UPDATE` on **confirmed** bookings overlapping the slot window (plus travel buffer).
-4. Pick technician (load-balancing: fewest non-cancelled jobs that IST day, then lowest id).
-5. **Re-read** that technician’s bookings and re-check buffer rules.
-6. Insert booking (idempotency row in the same transaction).
+4. Pick a technician from **those locked rows**: drop anyone whose shift or buffer conflicts, then fewest non-cancelled jobs that **start** that IST day, then lowest id. The count is the locked list, not a second non-locking query. Under repeatable read that second query would keep the snapshot from the start of the transaction and could miss a booking the other transaction just committed, so two non-overlapping requests could both choose the same technician.
+5. Insert booking (idempotency row in the same transaction).
 
 The authoritative guarantee is **InnoDB row locks in MySQL**, not in-memory state. Multiple API instances are safe because contention is serialized in the database.
 
@@ -152,7 +151,7 @@ Already in place: idempotency, structured logs + `X-Request-Id`, Redis rate limi
 |------|----------|
 | Create transaction | `BookingTxService.create` |
 | Technician `FOR UPDATE` | `TechnicianRepository.lockByIdsInOrder` |
-| Booking `FOR UPDATE` | `BookingRepository.findActiveInRangeForUpdate` |
+| Booking `FOR UPDATE` | `BookingRepository.findNonCancelledInRangeForUpdate` |
 | Cancel lock | `BookingRepository.findDetailedByIdForUpdate` |
 
 Isolation: InnoDB **REPEATABLE READ** (default). Failed booking rolls back idempotency row with the transaction.
@@ -167,7 +166,7 @@ Tests: `GlobalExceptionHandlerTest`, `BookingApiIntegrationTest` (errors, cancel
 
 ### C. Booking search and pagination
 
-`BookingQueryService`: two-step id page + `findDetailedByIdIn`. Endpoints: `GET /bookings?phone=`, `GET /technicians/{id}/schedule` with optional `status`, IST date range, `Pageable` (`startTime` sort).
+`BookingQueryService`: two-step id page + `findDetailedByIdIn`. Endpoints: `GET /bookings?phone=`, `GET /technicians/{id}/schedule` with optional `status` (omitted means every status, including cancelled), IST date range, `Pageable` (`startTime` sort).
 
 ### D. Logging and request correlation
 
@@ -175,7 +174,7 @@ JSON logs: `logback-spring.xml` + Logstash encoder. `RequestIdFilter`: `X-Reques
 
 ### E. Rate limiting
 
-Bucket4j + Redis (`LettuceBasedProxyManager`); `RateLimitFilter` on `/availability`, `/bookings`, `/technicians/{id}/schedule`. Default **20 req/min/IP**; `rate-limit.*` properties; no-op if Redis down at startup. Tests: `RateLimitFilterTest`, `RateLimitFilterWebMvcTest`.
+Bucket4j + Redis (`LettuceBasedProxyManager`); `RateLimitFilter` on `/availability`, `/bookings`, `/technicians/{id}/schedule`. Default **20 req/min/IP**; `rate-limit.*` properties. `docker compose up` starts Redis and enables limiting. A host-run app with Redis down at startup does not limit. Tests: `RateLimitFilterTest`, `RateLimitFilterWebMvcTest`.
 
 ### F. Stack (implemented)
 

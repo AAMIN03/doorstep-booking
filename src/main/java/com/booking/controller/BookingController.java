@@ -92,8 +92,8 @@ public class BookingController {
 
     /**
      * Paginated technician schedule for {@code date} (required). Optional {@code startDate}/{@code endDate} widen the
-     * IST window; optional {@code status} filters (default excludes cancelled). Pagination: {@code page}, {@code size},
-     * {@code sort} (default {@code startTime,asc}).
+     * IST window; optional {@code status} filters (default returns every status). Pagination: {@code page},
+     * {@code size}, {@code sort} (default {@code startTime,asc}).
      */
     @GetMapping("/technicians/{id}/schedule")
     public ScheduleResponse schedule(@PathVariable Long id,

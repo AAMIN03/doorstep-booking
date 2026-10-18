@@ -17,6 +17,17 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
   app:
     build: .
     ports:
@@ -25,8 +36,13 @@ services:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/doorstep?serverTimezone=UTC
       SPRING_DATASOURCE_USERNAME: app
       SPRING_DATASOURCE_PASSWORD: app
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      RATE_LIMIT_ENABLED: "true"
     depends_on:
       mysql:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
 volumes:

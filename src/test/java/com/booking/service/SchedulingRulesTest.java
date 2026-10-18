@@ -115,6 +115,24 @@ class SchedulingRulesTest {
     }
 
     @Test
+    void bookingThatEndsAtNextMidnightIsOutsideShift() {
+        when(tech.getShiftStart()).thenReturn(LocalTime.of(8, 0));
+        when(tech.getShiftEnd()).thenReturn(LocalTime.of(20, 0));
+        Instant start = Instant.parse("2026-10-20T17:30:00Z");
+        Instant end = Instant.parse("2026-10-20T18:30:00Z");
+        assertFalse(rules.fitsShift(tech, start, end));
+    }
+
+    @Test
+    void thirtyMinuteJobEndingAtMidnightIsOutsideShift() {
+        when(tech.getShiftStart()).thenReturn(LocalTime.of(8, 0));
+        when(tech.getShiftEnd()).thenReturn(LocalTime.of(20, 0));
+        Instant start = Instant.parse("2026-10-20T18:00:00Z");
+        Instant end = Instant.parse("2026-10-20T18:30:00Z");
+        assertFalse(rules.fitsShift(tech, start, end));
+    }
+
+    @Test
     void invalidSlotAlignment() {
         Instant start = Instant.parse("2026-10-20T04:45:00Z");
         assertFalse(rules.isSlotAligned(start));

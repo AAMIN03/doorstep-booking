@@ -2,7 +2,7 @@
 
 Spring Boot API that books doorstep battery services, assigns technicians under zone/skill/shift rules, and prevents double-booking with MySQL row locks.
 
-**Stack:** Java 21, Spring Boot 3.4.x, Maven, MySQL 8.4, Flyway, JPA, Redis (optional, for rate limits), Testcontainers, Docker Compose.
+**Stack:** Java 21, Spring Boot 3.4.x, Maven, MySQL 8.4, Flyway, JPA, Redis (rate limits; started by Compose), Testcontainers, Docker Compose.
 
 ---
 
@@ -12,7 +12,7 @@ Spring Boot API that books doorstep battery services, assigns technicians under 
 
 - **Java 21** (JDK)
 - **Docker** (recommended for MySQL and full stack)
-- **Redis** (optional): rate limiting is enabled by default but the app **starts without Redis** and skips limiting if Redis is unreachable at startup. For local limiting, run Redis (see [Rate limiting](#rate-limiting-bucket4j--redis)).
+- **Redis** comes up with `docker compose up`. A host-run app still starts if Redis is down and skips rate limiting (see [Rate limiting](#rate-limiting-bucket4j--redis)).
 
 ### Option A — App + MySQL with Docker Compose (recommended)
 
@@ -24,6 +24,7 @@ docker compose up --build
 - API: `http://localhost:8080`
 - Health: `http://localhost:8080/actuator/health`
 - MySQL: `localhost:3306` (user `app` / password `app`, database `doorstep`)
+- Redis: `localhost:6379` (rate limiting is on for the Compose app)
 
 Flyway runs migrations and seed data on startup.
 
@@ -68,7 +69,7 @@ Integration tests use **Testcontainers** with MySQL 8.4. Docker Desktop (or equi
 ### Without Docker (unit / slice tests only)
 
 ```bash
-./mvnw test -Dtest=SchedulingRulesTest,GlobalExceptionHandlerTest,RequestIdFilterTest,RequestIdFilterWebMvcTest,RateLimitFilterTest,RateLimitFilterWebMvcTest,ActuatorHealthMockMvcTest
+./mvnw test -Dtest=SchedulingRulesTest,BookingAssignmentTest,TimeServiceTest,GlobalExceptionHandlerTest,RequestIdFilterTest,RequestIdFilterWebMvcTest,RateLimitFilterTest,RateLimitFilterWebMvcTest,ActuatorHealthMockMvcTest
 ```
 
 Tests disable Redis rate limiting via `src/test/resources/application.properties` (`rate-limit.enabled=false`).
@@ -77,7 +78,7 @@ Tests disable Redis rate limiting via `src/test/resources/application.properties
 
 | Area | Main test classes |
 |------|-------------------|
-| Scheduling rules | `SchedulingRulesTest` |
+| Scheduling rules and assignment | `SchedulingRulesTest`, `BookingAssignmentTest` |
 | Error JSON | `GlobalExceptionHandlerTest`, `BookingApiIntegrationTest` |
 | Booking / cancel / list / schedule | `BookingApiIntegrationTest` |
 | Concurrency / locks | `BookingConcurrencyIntegrationTest` |
@@ -162,12 +163,38 @@ Schedule body: `{ "technicianId", "date", "bookings": { "content", "page", "size
 | `POST` | `/bookings` | `Idempotency-Key` header; JSON body |
 | `GET` | `/bookings/{id}` | |
 | `POST` | `/bookings/{id}/cancel` | |
-| `GET` | `/technicians/{id}/schedule` | `date` required; optional range, `status`, pagination |
+| `GET` | `/technicians/{id}/schedule` | `date` required; optional range, `status` (default: every status), pagination |
 | `GET` | `/actuator/health` | Not rate-limited |
 
 ---
 
-## Assumptions
+## Ambiguous requirements — assumptions we made
+
+The brief leaves several points open. We picked one reasonable interpretation for each, implemented it, and documented it here (reviewers: this is intentional).
+
+| Topic | What was unclear | **Our assumption** | Where it lives |
+|--------|------------------|--------------------|----------------|
+| **Auth** | “Customer” with no login spec | **No OAuth/API keys.** Customer identity = **10-digit phone**. Reads/cancel require **`X-Customer-Phone`** matching the booking; no SMS OTP (trusted client, e.g. app already logged the user in). | `CustomerIdentity`, `BookingService`, README |
+| **Identity leaks** | Whether wrong customer gets 403 vs 404 on `GET /bookings/{id}` | **404 `UNKNOWN_BOOKING`** when phone doesn’t match (same as missing id) so callers can’t probe ids. | `BookingService.requireBookingOwnedBy` |
+| **Time zone** | “Single timezone” vs storage | **IST only** on the API (`+05:30` / `Asia/Kolkata`); **UTC instants** in MySQL internally. All `date` query params = **IST calendar days**. | `TimeService`, `application.properties`, tests |
+| **Availability vs book** | Can two users book the same slot? | **`GET /availability` is advisory** (no locks). **`POST /bookings`** is authoritative; second caller gets **409** or no technician after DB locks. | `AvailabilityService`, `BookingTxService`, `DESIGN.md` |
+| **Horizon** | Inclusive/exclusive “2h–7d” window | **`now + 2h` ≤ start ≤ `now + 7d`** (both ends inclusive on instant comparison). | `SchedulingRules.withinHorizon` |
+| **Slot shape** | Buffer before vs after job | **30 min after** each **confirmed** job (travel), not before. Slot alignment on **IST** half-hours. | `SchedulingRules` |
+| **History vs blocking** | Do past/completed jobs block? | Only **`CONFIRMED`** blocks; **cancelled** and **completed** do not. | `SchedulingRules.conflicts`, repositories |
+| **Assignment** | Tie when multiple techs qualify | Fewest **non-cancelled** jobs that **start that IST day**, counted from the rows locked in the booking transaction, then **lowest technician id**. | `BookingTxService.chooseTechnician` |
+| **Cancellation** | Cutoff wording | Cancel allowed iff **`now + 1h ≤ start`**; cannot cancel **completed** bookings. | `SchedulingRules`, `BookingService.cancel` |
+| **Technician schedule** | Customer vs ops API, and whether cancelled jobs appear | **`GET /technicians/{id}/schedule`** is **open** (no phone header)—ops/dispatch view. Default returns **every status**, in start-time order. `status` narrows it. | `BookingController`, `BookingQueryService` |
+| **Shift vs midnight** | Does a job that ends at 00:00 still “fit” a daytime shift? | **No.** Start and end must both fall inside the shift on the **start date**. Comparing clock times alone would treat 00:00 as before 20:00. | `SchedulingRules.fitsShift` |
+| **Rate limiting** | Per user vs per IP vs global | **Per client IP** (first `X-Forwarded-For` hop), **20 req/min** default. Compose starts Redis and turns limiting on. A host-run app with Redis down does not limit. | `RateLimitFilter`, `docker-compose.yml` |
+| **Idempotency** | Which operations | **`POST /bookings` only**; hash = phone + service + pincode + startTime. | `BookingService`, `IdempotencyService` |
+| **Notifications** | Required at submit time | **Not implemented**; booking API stays sync. **Outbox + workers** described in `DESIGN.md` for SMS/WhatsApp later. | `DESIGN.md` §4 |
+| **Multi-instance** | In-memory limits useless | **Bucket4j + Redis** for shared counters; not required for single-node dev. | `RedisRateLimitOperations` |
+
+If a product owner chooses differently (e.g. OTP auth, slot holds, per-phone rate limits), the table above is the baseline we coded against.
+
+---
+
+## Assumptions (enforced rules)
 
 These rules are enforced in code (`SchedulingRules`, `BookingTxService`, seed data). See `DESIGN.md` for concurrency and scale discussion.
 
@@ -185,13 +212,15 @@ These rules are enforced in code (`SchedulingRules`, `BookingTxService`, seed da
 - Service duration comes from the `services` table; booking interval is **`[start, end)`**.
 - Bookings allowed only from **`now + 2 hours`** through **`now + 7 days`** (inclusive window; uses injectable `Clock`).
 - **`GET /availability` does not lock slots**; two customers can see the same slot; `POST /bookings` is authoritative.
+- Availability and booking both look at confirmed work from **30 minutes before** the IST day through **30 minutes after** it, so a buffer that crosses midnight is visible on both paths.
 
 ### Travel buffer and assignment
 
 - **30 minutes** after each **confirmed** job before the same technician can start another (travel buffer).
-- Only **`CONFIRMED`** bookings block slots; **cancelled** and **completed** do not.
+- Only **`CONFIRMED`** bookings block slots; **cancelled** and **completed** do not. Completed jobs still count toward that day's load.
+- The job's start and end must both fall inside the technician's shift on the booking's **IST start date**. An end after midnight is outside the shift.
 - Eligible technicians: correct **zone** (pincode), **skill** for service, and shift covering the slot.
-- Assignment: technician with **fewest non-cancelled** jobs that IST day, then **lowest technician id**.
+- Assignment: technician with **fewest non-cancelled** jobs that **start** that IST day, then **lowest technician id**. The count uses the bookings locked in that transaction.
 
 ### Cancellation
 
@@ -207,7 +236,7 @@ These rules are enforced in code (`SchedulingRules`, `BookingTxService`, seed da
 ### Infrastructure (not product rules)
 
 - **Single MySQL** primary for writes; no read replicas in this repo.
-- **Rate limiting** per client IP when Redis is available (default 20 requests/minute on booking routes).
+- **Rate limiting** per client IP (default 20 requests/minute on booking routes). Compose runs Redis; without Redis the app still starts and does not limit.
 - **No** WhatsApp/SMS/push notifications in this codebase yet (outbox described in `DESIGN.md`).
 
 ---
@@ -223,7 +252,7 @@ These rules are enforced in code (`SchedulingRules`, `BookingTxService`, seed da
 
 **`GET /bookings`** — `PageResponse`: `content`, `page`, `size`, `totalElements`, `totalPages`. Default `size=20`, `sort=startTime,desc`.
 
-**`GET /technicians/{id}/schedule`** — `bookings` nested `PageResponse`. Default `sort=startTime,asc`; excludes `CANCELLED` unless `status` is set.
+**`GET /technicians/{id}/schedule`** — `bookings` nested `PageResponse`. Default `sort=startTime,asc` and **every status**. Pass `status` to keep one status only.
 
 ---
 
@@ -263,6 +292,8 @@ Message patterns: `Field '…'`, `Parameter '…'`, `Header '…' is required` �
 
 ## Rate limiting (Bucket4j + Redis)
 
+`docker compose up` starts Redis and points the app at it, so limiting is active in that stack. On a host run, Redis defaults to `localhost:6379`; if it is down, limiting is skipped and the app still serves traffic.
+
 Shared token bucket per IP on `/availability`, `/bookings`, `/technicians/{id}/schedule` (not actuator).
 
 | Property | Default |
@@ -274,6 +305,8 @@ Shared token bucket per IP on `/availability`, `/bookings`, `/technicians/{id}/s
 | `rate-limit.redis.port` | `6379` |
 
 Env aliases: `RATE_LIMIT_ENABLED`, `RATE_LIMIT_REQUESTS_PER_MINUTE`, `REDIS_HOST`, `REDIS_PORT`.
+
+Host-only Redis, if you are not using Compose:
 
 ```bash
 docker run -d --name doorstep-redis -p 6379:6379 redis:7-alpine
@@ -289,6 +322,7 @@ Exceeded limit → **429** + `RATE_LIMIT_EXCEEDED`.
 
 - `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`
 - `SERVER_PORT` (default `8080`)
+- `REDIS_HOST`, `REDIS_PORT`, `RATE_LIMIT_ENABLED`
 
 ---
 
@@ -297,6 +331,10 @@ Exceeded limit → **429** + `RATE_LIMIT_EXCEEDED`.
 `com.booking` → `config`, `controller`, `dto`, `entity`, `enums`, `exception`, `ratelimit`, `repository`, `service`, `validation`, `web`
 
 ---
+
+## AI assistance
+
+Cursor (Grok) reviewed this service against the take-home brief and applied the follow-up fixes: shift boundaries that cross midnight, assignment counts taken from locked booking rows, the availability window, cancelled jobs on the technician schedule, Redis in Docker Compose, and the tests and docs for those changes. Extend this note if other assistants were used while building the original service.
 
 ## Further reading
 

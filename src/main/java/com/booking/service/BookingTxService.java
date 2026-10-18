@@ -79,18 +79,11 @@ public class BookingTxService {
         LocalDate day = timeService.toIstDate(start);
         Instant dayStart = timeService.istToUtc(day, LocalTime.MIN);
         Instant dayEnd = timeService.istToUtc(day.plusDays(1), LocalTime.MIN);
-        List<BookingEntity> active = bookingRepository.findActiveInRangeForUpdate(ids,
+        List<BookingEntity> locked = bookingRepository.findNonCancelledInRangeForUpdate(ids,
                 dayStart.minus(SchedulingRules.TRAVEL_BUFFER), dayEnd.plus(SchedulingRules.TRAVEL_BUFFER));
 
-        TechnicianEntity chosen = chooseTechnician(eligible, active, start, end, dayStart, dayEnd);
+        TechnicianEntity chosen = chooseTechnician(rules, eligible, locked, start, end, dayStart, dayEnd);
         if (chosen == null) {
-            throw new ApiException(HttpStatus.CONFLICT, ErrorCode.NO_TECHNICIAN_AVAILABLE,
-                    "No technician is available for the requested slot.");
-        }
-
-        List<BookingEntity> freshForTech = bookingRepository.findActiveInRangeForUpdate(List.of(chosen.getId()),
-                start.minus(SchedulingRules.TRAVEL_BUFFER), end.plus(SchedulingRules.TRAVEL_BUFFER));
-        if (rules.conflicts(start, end, freshForTech)) {
             throw new ApiException(HttpStatus.CONFLICT, ErrorCode.NO_TECHNICIAN_AVAILABLE,
                     "No technician is available for the requested slot.");
         }
@@ -119,22 +112,33 @@ public class BookingTxService {
         }
     }
 
-    private TechnicianEntity chooseTechnician(List<TechnicianEntity> eligible, List<BookingEntity> active,
-            Instant start, Instant end, Instant dayStart, Instant dayEnd) {
+    /**
+     * Among technicians free for the slot, pick the fewest non-cancelled jobs that start on this IST day, then the
+     * lowest id. The count comes from {@code locked} (the {@code FOR UPDATE} rows), not a second query.
+     */
+    static TechnicianEntity chooseTechnician(SchedulingRules rules, List<TechnicianEntity> eligible,
+            List<BookingEntity> locked, Instant start, Instant end, Instant dayStart, Instant dayEnd) {
         List<TechnicianEntity> candidates = new ArrayList<>();
         for (TechnicianEntity tech : eligible) {
             if (!rules.fitsShift(tech, start, end)) {
                 continue;
             }
-            List<BookingEntity> techBookings = active.stream()
+            List<BookingEntity> techBookings = locked.stream()
                     .filter(b -> b.getTechnician().getId().equals(tech.getId())).toList();
             if (!rules.conflicts(start, end, techBookings)) {
                 candidates.add(tech);
             }
         }
         return candidates.stream()
-                .min(Comparator.comparingLong((TechnicianEntity t) -> bookingRepository.countActiveForDay(t.getId(),
-                        dayStart, dayEnd, BookingStatus.CANCELLED)).thenComparing(TechnicianEntity::getId))
+                .min(Comparator
+                        .comparingLong((TechnicianEntity t) -> bookingsThatDay(locked, t.getId(), dayStart, dayEnd))
+                        .thenComparing(TechnicianEntity::getId))
                 .orElse(null);
+    }
+
+    static long bookingsThatDay(List<BookingEntity> locked, Long technicianId, Instant dayStart, Instant dayEnd) {
+        return locked.stream().filter(b -> b.getTechnician().getId().equals(technicianId))
+                .filter(b -> b.getStatus() != BookingStatus.CANCELLED)
+                .filter(b -> !b.getStartTime().isBefore(dayStart) && b.getStartTime().isBefore(dayEnd)).count();
     }
 }

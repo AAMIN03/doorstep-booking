@@ -59,9 +59,9 @@ public class BookingQueryService {
     }
 
     /**
-     * Paginated technician schedule. Default status filter excludes {@link BookingStatus#CANCELLED}; when
-     * {@code status} is set, only that status is returned. Date range defaults to the single required
-     * {@code anchorDate} unless {@code rangeStart} / {@code rangeEnd} narrow the IST window.
+     * Paginated technician schedule. When {@code status} is omitted, every status is returned, including cancelled.
+     * Date range defaults to the single required {@code anchorDate} unless {@code rangeStart} / {@code rangeEnd} widen
+     * the IST window.
      */
     @Transactional(readOnly = true)
     public PageResponse<BookingResponse> technicianSchedule(Long technicianId, LocalDate anchorDate,

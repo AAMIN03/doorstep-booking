@@ -55,7 +55,8 @@ public class AvailabilityService {
         Instant dayEnd = timeService.istToUtc(date.plusDays(1), LocalTime.MIN);
         List<Long> techIds = eligible.stream().map(TechnicianEntity::getId).toList();
         List<com.booking.entity.BookingEntity> dayBookings = techIds.isEmpty() ? List.of()
-                : bookingRepository.findActiveInRange(techIds, dayStart.minus(SchedulingRules.TRAVEL_BUFFER), dayEnd);
+                : bookingRepository.findActiveInRange(techIds, dayStart.minus(SchedulingRules.TRAVEL_BUFFER),
+                        dayEnd.plus(SchedulingRules.TRAVEL_BUFFER));
 
         LocalTime slot = LocalTime.MIDNIGHT;
         for (int i = 0; i < 48; i++) {
