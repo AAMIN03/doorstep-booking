@@ -10,7 +10,6 @@ import java.time.LocalDate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,7 +39,7 @@ public class TechnicianScheduleService {
     public ScheduleResponse schedule(Long technicianId, LocalDate date, LocalDate startDate, LocalDate endDate,
             BookingStatus status, Pageable pageable) {
         if (!technicianRepository.existsById(technicianId)) {
-            throw new ApiException(HttpStatus.NOT_FOUND, ErrorCode.UNKNOWN_TECHNICIAN, "Technician not found");
+            throw new ApiException(ErrorCode.UNKNOWN_TECHNICIAN);
         }
         PageResponse<com.booking.dto.BookingResponse> page = bookingQueryService.technicianSchedule(technicianId, date,
                 startDate, endDate, status, pageable);

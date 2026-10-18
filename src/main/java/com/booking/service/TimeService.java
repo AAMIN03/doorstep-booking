@@ -9,7 +9,6 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 /**
@@ -19,8 +18,11 @@ import org.springframework.stereotype.Component;
 public class TimeService {
 
     public static final ZoneId ZONE = ZoneId.of("Asia/Kolkata");
+    public static final ZoneId UTC = ZoneId.of("UTC");
 
-    private static final ZoneOffset IST_OFFSET = ZoneOffset.ofHoursMinutes(5, 30);
+    private static final int IST_OFFSET_HOURS = 5;
+    private static final int IST_OFFSET_MINUTES = 30;
+    private static final ZoneOffset IST_OFFSET = ZoneOffset.ofHoursMinutes(IST_OFFSET_HOURS, IST_OFFSET_MINUTES);
 
     /**
      * Converts an API {@code ZonedDateTime} to UTC for storage after verifying IST zone/offset.
@@ -30,7 +32,7 @@ public class TimeService {
      */
     public Instant toUtcInstant(ZonedDateTime zoned) {
         requireIst(zoned, "startTime");
-        return zoned.withZoneSameInstant(ZoneId.of("UTC")).toInstant();
+        return zoned.withZoneSameInstant(UTC).toInstant();
     }
 
     /**
@@ -38,8 +40,7 @@ public class TimeService {
      */
     public void requireIst(ZonedDateTime zoned, String fieldName) {
         if (zoned == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR,
-                    "Field '" + fieldName + "': is required");
+            throw new ApiException(ErrorCode.VALIDATION_ERROR, "Field '" + fieldName + "': is required");
         }
         ZoneId zone = zoned.getZone();
         if (zone.equals(ZONE)) {
@@ -48,7 +49,7 @@ public class TimeService {
         if (zone instanceof ZoneOffset offset && offset.equals(IST_OFFSET)) {
             return;
         }
-        throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR,
+        throw new ApiException(ErrorCode.VALIDATION_ERROR,
                 "Field '" + fieldName + "': must use IST (Asia/Kolkata or +05:30)");
     }
 
@@ -61,6 +62,6 @@ public class TimeService {
     }
 
     public Instant istToUtc(LocalDate date, LocalTime time) {
-        return LocalDateTime.of(date, time).atZone(ZONE).withZoneSameInstant(ZoneId.of("UTC")).toInstant();
+        return LocalDateTime.of(date, time).atZone(ZONE).withZoneSameInstant(UTC).toInstant();
     }
 }

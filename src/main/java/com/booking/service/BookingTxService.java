@@ -15,6 +15,7 @@ import com.booking.repository.ServiceRepository;
 import com.booking.repository.TechnicianRepository;
 import com.booking.repository.ZonePincodeRepository;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -23,7 +24,6 @@ import java.util.Comparator;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -62,13 +62,13 @@ public class BookingTxService {
         IdempotencyRecordEntity record = IdempotencyRecordEntity.of(idempotencyKey, hash, clock.instant());
         idempotencyRecordRepository.saveAndFlush(record);
 
-        ServiceEntity service = serviceRepository.findById(request.serviceId()).orElseThrow(
-                () -> new ApiException(HttpStatus.NOT_FOUND, ErrorCode.UNKNOWN_SERVICE, "Service not found"));
-        ZonePincodeEntity zp = zonePincodeRepository.findByPincodeWithZone(request.pincode()).orElseThrow(
-                () -> new ApiException(HttpStatus.NOT_FOUND, ErrorCode.UNKNOWN_PINCODE, "Pincode not served"));
+        ServiceEntity service = serviceRepository.findById(request.serviceId())
+                .orElseThrow(() -> new ApiException(ErrorCode.UNKNOWN_SERVICE));
+        ZonePincodeEntity zp = zonePincodeRepository.findByPincodeWithZone(request.pincode())
+                .orElseThrow(() -> new ApiException(ErrorCode.UNKNOWN_PINCODE));
 
         Instant start = timeService.toUtcInstant(request.startTime());
-        Instant end = start.plusSeconds(service.getDurationMinutes() * 60L);
+        Instant end = start.plus(Duration.ofMinutes(service.getDurationMinutes()));
         validateSlot(start);
 
         List<TechnicianEntity> eligible = technicianRepository.findEligible(zp.getZone().getId(),
@@ -76,8 +76,7 @@ public class BookingTxService {
         log.debug("Create booking serviceId={} pincode={} start={} eligibleTechnicians={}", request.serviceId(),
                 request.pincode(), start, eligible.size());
         if (eligible.isEmpty()) {
-            throw new ApiException(HttpStatus.CONFLICT, ErrorCode.NO_TECHNICIAN_AVAILABLE,
-                    "No technician is available for the requested slot.");
+            throw new ApiException(ErrorCode.NO_TECHNICIAN_AVAILABLE);
         }
 
         List<Long> ids = eligible.stream().map(TechnicianEntity::getId).sorted().toList();
@@ -90,8 +89,7 @@ public class BookingTxService {
 
         TechnicianEntity chosen = chooseTechnician(rules, eligible, locked, start, end, dayStart, dayEnd);
         if (chosen == null) {
-            throw new ApiException(HttpStatus.CONFLICT, ErrorCode.NO_TECHNICIAN_AVAILABLE,
-                    "No technician is available for the requested slot.");
+            throw new ApiException(ErrorCode.NO_TECHNICIAN_AVAILABLE);
         }
         log.debug("Assigned technicianId={} for pincode={} start={}", chosen.getId(), request.pincode(), start);
 
@@ -110,12 +108,10 @@ public class BookingTxService {
 
     private void validateSlot(Instant start) {
         if (!rules.isSlotAligned(start)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.INVALID_SLOT,
-                    "Start time must align to 30-minute boundaries");
+            throw new ApiException(ErrorCode.INVALID_SLOT);
         }
         if (!rules.withinHorizon(start)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.OUTSIDE_HORIZON,
-                    "Booking must be between 2 hours and 7 days from now");
+            throw new ApiException(ErrorCode.OUTSIDE_HORIZON);
         }
     }
 

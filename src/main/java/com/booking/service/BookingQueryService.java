@@ -10,7 +10,6 @@ import com.booking.repository.BookingRepository;
 import com.booking.validation.PhoneNumberValidator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -53,8 +52,7 @@ public class BookingQueryService {
             BookingStatus status, LocalDate startDate, LocalDate endDate, Pageable pageable) {
         PhoneNumberValidator.requireHeaderMatchesQueryPhone(customerPhoneHeader, phone);
         if (startDate != null && endDate != null && endDate.isBefore(startDate)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR,
-                    "Parameter 'endDate': must be on or after startDate");
+            throw new ApiException(ErrorCode.VALIDATION_ERROR, ErrorCode.END_DATE_ORDER);
         }
         Instant startInclusive = startDate != null ? timeService.istToUtc(startDate, LocalTime.MIN) : null;
         Instant endExclusive = endDate != null ? timeService.istToUtc(endDate.plusDays(1), LocalTime.MIN) : null;
@@ -76,8 +74,7 @@ public class BookingQueryService {
         LocalDate from = rangeStart != null ? rangeStart : anchorDate;
         LocalDate to = rangeEnd != null ? rangeEnd : anchorDate;
         if (to.isBefore(from)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR,
-                    "Parameter 'endDate': must be on or after startDate");
+            throw new ApiException(ErrorCode.VALIDATION_ERROR, ErrorCode.END_DATE_ORDER);
         }
         Instant dayStart = timeService.istToUtc(from, LocalTime.MIN);
         Instant dayEnd = timeService.istToUtc(to.plusDays(1), LocalTime.MIN);

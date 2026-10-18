@@ -11,6 +11,7 @@ import com.booking.repository.BookingRepository;
 import com.booking.repository.ServiceRepository;
 import com.booking.repository.TechnicianRepository;
 import com.booking.repository.ZonePincodeRepository;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -18,7 +19,6 @@ import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,10 +47,10 @@ public class AvailabilityService {
 
     @Transactional(readOnly = true)
     public AvailabilityResponse getAvailability(Long serviceId, String pincode, LocalDate date) {
-        ServiceEntity service = serviceRepository.findById(serviceId).orElseThrow(
-                () -> new ApiException(HttpStatus.NOT_FOUND, ErrorCode.UNKNOWN_SERVICE, "Service not found"));
-        ZonePincodeEntity zp = zonePincodeRepository.findByPincodeWithZone(pincode).orElseThrow(
-                () -> new ApiException(HttpStatus.NOT_FOUND, ErrorCode.UNKNOWN_PINCODE, "Pincode not served"));
+        ServiceEntity service = serviceRepository.findById(serviceId)
+                .orElseThrow(() -> new ApiException(ErrorCode.UNKNOWN_SERVICE));
+        ZonePincodeEntity zp = zonePincodeRepository.findByPincodeWithZone(pincode)
+                .orElseThrow(() -> new ApiException(ErrorCode.UNKNOWN_PINCODE));
         List<TechnicianEntity> eligible = technicianRepository.findEligible(zp.getZone().getId(),
                 service.getRequiredSkill());
         List<SlotDto> slots = new ArrayList<>();
@@ -63,14 +63,15 @@ public class AvailabilityService {
                         dayEnd.plus(SchedulingRules.TRAVEL_BUFFER));
 
         LocalTime slot = LocalTime.MIDNIGHT;
-        for (int i = 0; i < 48; i++) {
+        Duration serviceDuration = Duration.ofMinutes(duration);
+        for (int i = 0; i < SchedulingRules.SLOTS_PER_DAY; i++) {
             Instant start = timeService.istToUtc(date, slot);
-            Instant end = start.plusSeconds(duration * 60L);
+            Instant end = start.plus(serviceDuration);
             if (rules.isSlotAligned(start) && rules.withinHorizon(start)
                     && anyTechnicianAvailable(eligible, dayBookings, start, end)) {
                 slots.add(new SlotDto(timeService.toIst(start), timeService.toIst(end)));
             }
-            slot = slot.plusMinutes(30);
+            slot = slot.plus(SchedulingRules.SLOT_LENGTH);
         }
         log.debug("Availability serviceId={} pincode={} date={} eligibleTechnicians={} slots={}", serviceId, pincode,
                 date, eligible.size(), slots.size());

@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import net.logstash.logback.argument.StructuredArguments;
+import org.springframework.http.HttpMethod;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
@@ -25,6 +26,13 @@ public class ApiAccessLogFilter extends OncePerRequestFilter implements Ordered 
 
     private static final Logger log = LoggerFactory.getLogger(ApiAccessLogFilter.class);
     private static final int MAX_BODY_CHARS = 8192;
+    private static final String EVENT = "http access";
+    private static final String HTTP_METHOD = "httpMethod";
+    private static final String PATH = "path";
+    private static final String QUERY = "query";
+    private static final String STATUS = "status";
+    private static final String REQUEST_BODY = "requestBody";
+    private static final String RESPONSE_BODY = "responseBody";
 
     @Override
     public int getOrder() {
@@ -43,16 +51,16 @@ public class ApiAccessLogFilter extends OncePerRequestFilter implements Ordered 
         if (method == null || uri == null) {
             return false;
         }
-        if ("GET".equals(method) && "/availability".equals(uri)) {
+        if (HttpMethod.GET.matches(method) && ApiPaths.AVAILABILITY.equals(uri)) {
             return true;
         }
-        if ("/bookings".equals(uri) && ("GET".equals(method) || "POST".equals(method))) {
+        if (ApiPaths.BOOKINGS.equals(uri) && (HttpMethod.GET.matches(method) || HttpMethod.POST.matches(method))) {
             return true;
         }
-        if ("GET".equals(method) && uri.matches("/bookings/\\d+")) {
+        if (HttpMethod.GET.matches(method) && ApiPaths.BOOKING_ID.matcher(uri).matches()) {
             return true;
         }
-        return "POST".equals(method) && uri.matches("/bookings/\\d+/cancel");
+        return HttpMethod.POST.matches(method) && ApiPaths.CANCEL_BOOKING.matcher(uri).matches();
     }
 
     @Override
@@ -73,13 +81,13 @@ public class ApiAccessLogFilter extends OncePerRequestFilter implements Ordered 
 
     private static void logAccess(ContentCachingRequestWrapper request, ContentCachingResponseWrapper response) {
         Charset charset = charset(request.getCharacterEncoding());
-        String requestBody = "GET".equals(request.getMethod()) ? "" : body(request.getContentAsByteArray(), charset);
-        log.info("http access", StructuredArguments.kv("httpMethod", request.getMethod()),
-                StructuredArguments.kv("path", request.getRequestURI()),
-                StructuredArguments.kv("query", request.getQueryString() == null ? "" : request.getQueryString()),
-                StructuredArguments.kv("status", response.getStatus()),
-                StructuredArguments.kv("requestBody", requestBody),
-                StructuredArguments.kv("responseBody", body(response.getContentAsByteArray(), charset)));
+        String requestBody = HttpMethod.GET.matches(request.getMethod()) ? ""
+                : body(request.getContentAsByteArray(), charset);
+        log.info(EVENT, StructuredArguments.kv(HTTP_METHOD, request.getMethod()),
+                StructuredArguments.kv(PATH, request.getRequestURI()),
+                StructuredArguments.kv(QUERY, request.getQueryString() == null ? "" : request.getQueryString()),
+                StructuredArguments.kv(STATUS, response.getStatus()), StructuredArguments.kv(REQUEST_BODY, requestBody),
+                StructuredArguments.kv(RESPONSE_BODY, body(response.getContentAsByteArray(), charset)));
     }
 
     private static Charset charset(String encoding) {

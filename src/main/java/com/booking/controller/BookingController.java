@@ -10,7 +10,9 @@ import com.booking.service.AvailabilityService;
 import com.booking.service.BookingQueryService;
 import com.booking.service.BookingService;
 import com.booking.service.TechnicianScheduleService;
+import com.booking.web.ApiPaths;
 import com.booking.web.CustomerIdentity;
+import com.booking.web.Idempotency;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.time.LocalDate;
@@ -33,6 +35,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping
 public class BookingController {
 
+    private static final int DEFAULT_PAGE_SIZE = 20;
+    private static final String SORT_BY_START_TIME = "startTime";
+
     private final AvailabilityService availabilityService;
     private final BookingService bookingService;
     private final BookingQueryService bookingQueryService;
@@ -46,7 +51,7 @@ public class BookingController {
         this.scheduleService = scheduleService;
     }
 
-    @GetMapping("/availability")
+    @GetMapping(ApiPaths.AVAILABILITY)
     public AvailabilityResponse availability(@RequestParam Long serviceId, @RequestParam String pincode,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return availabilityService.getAvailability(serviceId, pincode, date);
@@ -57,26 +62,27 @@ public class BookingController {
      * {@code endDate} (IST, inclusive) filter on booking start. Pagination: {@code page}, {@code size}, {@code sort}
      * (e.g. {@code sort=startTime,desc}).
      */
-    @GetMapping("/bookings")
+    @GetMapping(ApiPaths.BOOKINGS)
     public PageResponse<BookingResponse> listByPhone(@RequestHeader(CustomerIdentity.HEADER) String customerPhone,
             @RequestParam String phone, @RequestParam(required = false) BookingStatus status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
-            @PageableDefault(size = 20, sort = "startTime", direction = Sort.Direction.DESC) Pageable pageable) {
+            @PageableDefault(size = DEFAULT_PAGE_SIZE, sort = SORT_BY_START_TIME, direction = Sort.Direction.DESC) Pageable pageable) {
         return bookingQueryService.listByCustomerPhone(customerPhone, phone, status, startDate, endDate, pageable);
     }
 
-    @PostMapping("/bookings")
-    public ResponseEntity<BookingResponse> create(@RequestHeader("Idempotency-Key") String idempotencyKey,
+    @PostMapping(ApiPaths.BOOKINGS)
+    public ResponseEntity<BookingResponse> create(@RequestHeader(Idempotency.HEADER) String idempotencyKey,
             @Valid @RequestBody CreateBookingRequest request) {
         BookingService.BookingResult result = bookingService.create(idempotencyKey, request);
         if (result.created()) {
-            return ResponseEntity.created(URI.create("/bookings/" + result.response().id())).body(result.response());
+            return ResponseEntity.created(URI.create(ApiPaths.bookingLocation(result.response().id())))
+                    .body(result.response());
         }
         return ResponseEntity.ok(result.response());
     }
 
-    @GetMapping("/bookings/{id}")
+    @GetMapping(ApiPaths.BOOKING)
     public BookingResponse get(@PathVariable Long id, @RequestHeader(CustomerIdentity.HEADER) String customerPhone) {
         return bookingService.getBooking(id, customerPhone);
     }
@@ -85,7 +91,7 @@ public class BookingController {
      * Cancels a confirmed booking. Returns 404 {@code UNKNOWN_BOOKING}, or 409 {@code INVALID_CANCELLATION} /
      * {@code LATE_CANCELLATION} per {@link com.booking.service.BookingService#cancel(Long)}.
      */
-    @PostMapping("/bookings/{id}/cancel")
+    @PostMapping(ApiPaths.CANCEL)
     public BookingResponse cancel(@PathVariable Long id, @RequestHeader(CustomerIdentity.HEADER) String customerPhone) {
         return bookingService.cancel(id, customerPhone);
     }
@@ -95,13 +101,13 @@ public class BookingController {
      * IST window; optional {@code status} filters (default returns every status). Pagination: {@code page},
      * {@code size}, {@code sort} (default {@code startTime,asc}).
      */
-    @GetMapping("/technicians/{id}/schedule")
+    @GetMapping(ApiPaths.TECHNICIAN_SCHEDULE)
     public ScheduleResponse schedule(@PathVariable Long id,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) BookingStatus status,
-            @PageableDefault(size = 20, sort = "startTime", direction = Sort.Direction.ASC) Pageable pageable) {
+            @PageableDefault(size = DEFAULT_PAGE_SIZE, sort = SORT_BY_START_TIME, direction = Sort.Direction.ASC) Pageable pageable) {
         return scheduleService.schedule(id, date, startDate, endDate, status, pageable);
     }
 }

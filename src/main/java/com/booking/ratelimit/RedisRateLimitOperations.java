@@ -19,6 +19,8 @@ public final class RedisRateLimitOperations implements RateLimitOperations {
 
     private static final Logger log = LoggerFactory.getLogger(RedisRateLimitOperations.class);
     private static final String KEY_PREFIX = "doorstep:rate:";
+    private static final String REDIS_URI_SCHEME = "redis://";
+    private static final String PING_RESPONSE = "PONG";
 
     private final ProxyManager<byte[]> proxyManager;
     private final BucketConfiguration bucketConfiguration;
@@ -37,11 +39,11 @@ public final class RedisRateLimitOperations implements RateLimitOperations {
      * @return operations backed by Redis
      */
     public static RedisRateLimitOperations create(RateLimitProperties properties) {
-        String redisUri = "redis://" + properties.getRedis().getHost() + ":" + properties.getRedis().getPort();
+        String redisUri = REDIS_URI_SCHEME + properties.getRedis().getHost() + ":" + properties.getRedis().getPort();
         RedisClient client = RedisClient.create(redisUri);
         try (StatefulRedisConnection<String, String> connection = client.connect()) {
             String pong = connection.sync().ping();
-            if (!"PONG".equalsIgnoreCase(pong)) {
+            if (!PING_RESPONSE.equalsIgnoreCase(pong)) {
                 throw new IllegalStateException("Redis PING failed: " + pong);
             }
         }

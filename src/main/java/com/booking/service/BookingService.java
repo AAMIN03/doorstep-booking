@@ -15,7 +15,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.PessimisticLockingFailureException;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class BookingService {
 
     private static final Logger log = LoggerFactory.getLogger(BookingService.class);
+    private static final int IDEMPOTENCY_WAIT_ATTEMPTS = 40;
+    private static final long IDEMPOTENCY_WAIT_MILLIS = 25;
+    private static final String HASH_ALGORITHM = "SHA-256";
 
     private final BookingRepository bookingRepository;
     private final BookingTxService bookingTxService;
@@ -64,26 +66,25 @@ public class BookingService {
             log.debug("Idempotency key {} already inserted, waiting for the original booking", idempotencyKey);
             return waitForIdempotentResult(idempotencyKey, hash);
         } catch (PessimisticLockingFailureException ex) {
-            throw new ApiException(HttpStatus.CONFLICT, ErrorCode.CONFLICT,
-                    "Booking temporarily contended, please retry", ex);
+            throw new ApiException(ErrorCode.CONFLICT, ErrorCode.BOOKING_CONTENDED, ex);
         }
     }
 
     private BookingResult waitForIdempotentResult(String key, String hash) {
-        for (int i = 0; i < 40; i++) {
+        for (int i = 0; i < IDEMPOTENCY_WAIT_ATTEMPTS; i++) {
             BookingResult retry = idempotencyService.findResult(key, hash);
             if (retry != null) {
                 return retry;
             }
             try {
-                Thread.sleep(25);
+                Thread.sleep(IDEMPOTENCY_WAIT_MILLIS);
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
                 log.warn("Interrupted while waiting for idempotent booking key={}", key, ex);
                 break;
             }
         }
-        throw new ApiException(HttpStatus.CONFLICT, ErrorCode.CONFLICT, "Idempotency conflict, retry");
+        throw new ApiException(ErrorCode.CONFLICT, ErrorCode.IDEMPOTENCY_RETRY);
     }
 
     /**
@@ -99,15 +100,13 @@ public class BookingService {
         PhoneNumberValidator.requireValidCustomerHeader(customerPhone);
         BookingEntity booking = requireBookingOwnedBy(bookingId, customerPhone, true);
         if (booking.getStatus() == BookingStatus.CANCELLED) {
-            throw new ApiException(HttpStatus.CONFLICT, ErrorCode.INVALID_CANCELLATION, "Booking already cancelled");
+            throw new ApiException(ErrorCode.INVALID_CANCELLATION, ErrorCode.ALREADY_CANCELLED);
         }
         if (booking.getStatus() == BookingStatus.COMPLETED) {
-            throw new ApiException(HttpStatus.CONFLICT, ErrorCode.INVALID_CANCELLATION,
-                    "Completed booking cannot be cancelled");
+            throw new ApiException(ErrorCode.INVALID_CANCELLATION, ErrorCode.COMPLETED_CANNOT_CANCEL);
         }
         if (rules.cancelTooLate(booking.getStartTime())) {
-            throw new ApiException(HttpStatus.CONFLICT, ErrorCode.LATE_CANCELLATION,
-                    "Cancellation must be at least 1 hour before start");
+            throw new ApiException(ErrorCode.LATE_CANCELLATION);
         }
         booking.setStatus(BookingStatus.CANCELLED);
         log.debug("Cancelled booking id={}", bookingId);
@@ -116,10 +115,10 @@ public class BookingService {
 
     private BookingEntity requireBookingOwnedBy(Long id, String customerPhone, boolean forUpdate) {
         BookingEntity booking = (forUpdate ? bookingRepository.findDetailedByIdForUpdate(id)
-                : bookingRepository.findDetailedById(id)).orElseThrow(
-                        () -> new ApiException(HttpStatus.NOT_FOUND, ErrorCode.UNKNOWN_BOOKING, "Booking not found"));
+                : bookingRepository.findDetailedById(id))
+                        .orElseThrow(() -> new ApiException(ErrorCode.UNKNOWN_BOOKING));
         if (!booking.getCustomerPhone().equals(customerPhone)) {
-            throw new ApiException(HttpStatus.NOT_FOUND, ErrorCode.UNKNOWN_BOOKING, "Booking not found");
+            throw new ApiException(ErrorCode.UNKNOWN_BOOKING);
         }
         return booking;
     }
@@ -128,7 +127,7 @@ public class BookingService {
         String raw = request.customerPhone() + "|" + request.serviceId() + "|" + request.pincode() + "|"
                 + request.startTime();
         try {
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(raw.getBytes(StandardCharsets.UTF_8));
+            byte[] digest = MessageDigest.getInstance(HASH_ALGORITHM).digest(raw.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest);
         } catch (Exception e) {
             throw new IllegalStateException(e);

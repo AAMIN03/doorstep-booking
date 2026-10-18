@@ -15,7 +15,9 @@ import org.springframework.stereotype.Component;
 @Component
 public class SchedulingRules {
 
-    public static final Duration TRAVEL_BUFFER = Duration.ofMinutes(30);
+    public static final Duration SLOT_LENGTH = Duration.ofMinutes(30);
+    public static final int SLOTS_PER_DAY = (int) Duration.ofDays(1).dividedBy(SLOT_LENGTH);
+    public static final Duration TRAVEL_BUFFER = SLOT_LENGTH;
     public static final Duration MIN_HORIZON = Duration.ofHours(2);
     public static final Duration MAX_HORIZON = Duration.ofDays(7);
     public static final Duration CANCEL_WINDOW = Duration.ofHours(1);
@@ -30,7 +32,7 @@ public class SchedulingRules {
 
     public boolean isSlotAligned(Instant start) {
         ZonedDateTime ist = timeService.toIst(start);
-        return ist.getMinute() % 30 == 0 && ist.getSecond() == 0 && ist.getNano() == 0;
+        return ist.getMinute() % SLOT_LENGTH.toMinutes() == 0 && ist.getSecond() == 0 && ist.getNano() == 0;
     }
 
     /** Inclusive lower bound (now+2h) and inclusive upper bound (now+7d). */

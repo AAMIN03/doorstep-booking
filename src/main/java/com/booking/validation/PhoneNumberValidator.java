@@ -3,7 +3,6 @@ package com.booking.validation;
 import com.booking.exception.ApiException;
 import com.booking.exception.ErrorCode;
 import com.booking.web.CustomerIdentity;
-import org.springframework.http.HttpStatus;
 
 /** Indian mobile numbers: 10 digits starting with 6–9 (same rule as {@link com.booking.dto.CreateBookingRequest}). */
 public final class PhoneNumberValidator {
@@ -15,7 +14,7 @@ public final class PhoneNumberValidator {
 
     public static void requireValid(String phone) {
         if (phone == null || !phone.matches(PATTERN)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR,
+            throw new ApiException(ErrorCode.VALIDATION_ERROR,
                     "Parameter 'phone': must be a valid Indian mobile number");
         }
     }
@@ -23,7 +22,7 @@ public final class PhoneNumberValidator {
     /** Validates {@link CustomerIdentity#HEADER} format. */
     public static void requireValidCustomerHeader(String phone) {
         if (phone == null || !phone.matches(PATTERN)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR,
+            throw new ApiException(ErrorCode.VALIDATION_ERROR,
                     "Header '" + CustomerIdentity.HEADER + "': must be a valid Indian mobile number");
         }
     }
@@ -35,7 +34,7 @@ public final class PhoneNumberValidator {
         requireValidCustomerHeader(headerPhone);
         requireValid(queryPhone);
         if (!headerPhone.equals(queryPhone)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR,
+            throw new ApiException(ErrorCode.VALIDATION_ERROR,
                     "Parameter 'phone': must match Header '" + CustomerIdentity.HEADER + "'");
         }
     }
