@@ -22,17 +22,13 @@ class RequestIdFilterWebMvcTest {
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(new PingController())
-                .addFilters(new RequestIdFilter())
-                .build();
+        mockMvc = MockMvcBuilders.standaloneSetup(new PingController()).addFilters(new RequestIdFilter()).build();
     }
 
     @Test
     void responseIncludesGeneratedRequestIdWhenHeaderAbsent() throws Exception {
-        MvcResult result = mockMvc.perform(get("/ping"))
-                .andExpect(status().isOk())
-                .andExpect(header().exists(RequestIdFilter.REQUEST_ID_HEADER))
-                .andReturn();
+        MvcResult result = mockMvc.perform(get("/ping")).andExpect(status().isOk())
+                .andExpect(header().exists(RequestIdFilter.REQUEST_ID_HEADER)).andReturn();
         String requestId = result.getResponse().getHeader(RequestIdFilter.REQUEST_ID_HEADER);
         assertThat(requestId).isNotBlank();
         assertThat(requestId).matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
@@ -41,8 +37,7 @@ class RequestIdFilterWebMvcTest {
     @Test
     void echoesClientRequestIdWhenHeaderPresent() throws Exception {
         String clientId = "client-correlation-42";
-        mockMvc.perform(get("/ping").header(RequestIdFilter.REQUEST_ID_HEADER, clientId))
-                .andExpect(status().isOk())
+        mockMvc.perform(get("/ping").header(RequestIdFilter.REQUEST_ID_HEADER, clientId)).andExpect(status().isOk())
                 .andExpect(header().string(RequestIdFilter.REQUEST_ID_HEADER, clientId));
     }
 

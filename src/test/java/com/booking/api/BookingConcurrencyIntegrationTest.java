@@ -25,7 +25,7 @@ import org.springframework.test.web.servlet.MvcResult;
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import({TestcontainersConfiguration.class, TestClockConfig.class})
+@Import({ TestcontainersConfiguration.class, TestClockConfig.class })
 class BookingConcurrencyIntegrationTest {
 
     @Autowired
@@ -48,11 +48,8 @@ class BookingConcurrencyIntegrationTest {
             futures.add(pool.submit(() -> {
                 ready.countDown();
                 start.await();
-                MvcResult result = mockMvc.perform(post("/bookings")
-                                .header("Idempotency-Key", key)
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(body))
-                        .andReturn();
+                MvcResult result = mockMvc.perform(post("/bookings").header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON).content(body)).andReturn();
                 return result.getResponse().getStatus();
             }));
         }
@@ -73,8 +70,7 @@ class BookingConcurrencyIntegrationTest {
         assertThat(failed).isEqualTo(1);
         Instant slot = Instant.parse("2026-10-20T09:30:00Z");
         long confirmedAtSlot = bookingRepository.findAll().stream()
-                .filter(b -> b.getStatus() == BookingStatus.CONFIRMED)
-                .filter(b -> b.getStartTime().equals(slot))
+                .filter(b -> b.getStatus() == BookingStatus.CONFIRMED).filter(b -> b.getStartTime().equals(slot))
                 .count();
         assertThat(confirmedAtSlot).isEqualTo(1);
     }
@@ -93,16 +89,12 @@ class BookingConcurrencyIntegrationTest {
                 ready.countDown();
                 start.await();
                 for (int attempt = 0; attempt < 40; attempt++) {
-                    MvcResult result = mockMvc.perform(post("/bookings")
-                                    .header("Idempotency-Key", "same-key")
-                                    .contentType(MediaType.APPLICATION_JSON)
-                                    .content(body))
-                            .andReturn();
+                    MvcResult result = mockMvc.perform(post("/bookings").header("Idempotency-Key", "same-key")
+                            .contentType(MediaType.APPLICATION_JSON).content(body)).andReturn();
                     int status = result.getResponse().getStatus();
                     if (status == 201 || status == 200) {
-                        return ((Number) com.jayway.jsonpath.JsonPath.read(
-                                        result.getResponse().getContentAsString(), "$.id"))
-                                .longValue();
+                        return ((Number) com.jayway.jsonpath.JsonPath.read(result.getResponse().getContentAsString(),
+                                "$.id")).longValue();
                     }
                     Thread.sleep(25);
                 }
@@ -117,8 +109,7 @@ class BookingConcurrencyIntegrationTest {
         assertThat(id1).isEqualTo(id2);
         long bookingsForSlot = bookingRepository.findAll().stream()
                 .filter(b -> b.getStatus() == BookingStatus.CONFIRMED)
-                .filter(b -> b.getStartTime().equals(Instant.parse("2026-10-20T10:30:00Z")))
-                .count();
+                .filter(b -> b.getStartTime().equals(Instant.parse("2026-10-20T10:30:00Z"))).count();
         assertThat(bookingsForSlot).isEqualTo(1);
     }
 }

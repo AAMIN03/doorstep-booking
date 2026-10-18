@@ -33,8 +33,7 @@ class RateLimitFilterWebMvcTest {
 
     private static MockMvc buildMvc(RateLimitOperations operations, ObjectMapper objectMapper) {
         return MockMvcBuilders.standaloneSetup(new PingController())
-                .addFilters(new RateLimitFilter(operations, new TimeService(), objectMapper))
-                .build();
+                .addFilters(new RateLimitFilter(operations, new TimeService(), objectMapper)).build();
     }
 
     @Test
@@ -42,10 +41,8 @@ class RateLimitFilterWebMvcTest {
         ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
         MockMvc limited = buildMvc(denyAll, objectMapper);
 
-        limited.perform(get("/availability").accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isTooManyRequests())
-                .andExpect(jsonPath("$.code").value("RATE_LIMIT_EXCEEDED"))
-                .andExpect(jsonPath("$.status").value(429))
+        limited.perform(get("/availability").accept(MediaType.APPLICATION_JSON)).andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("RATE_LIMIT_EXCEEDED")).andExpect(jsonPath("$.status").value(429))
                 .andExpect(jsonPath("$.message").value("Rate limit exceeded. Try again later."));
     }
 

@@ -32,8 +32,8 @@ public class IdempotencyService {
 
     private BookingService.BookingResult toResult(IdempotencyRecordEntity rec, String hash) {
         if (!rec.getRequestHash().equals(hash)) {
-            throw new ApiException(
-                    HttpStatus.CONFLICT, ErrorCode.IDEMPOTENCY_CONFLICT, "Idempotency key reused with different payload");
+            throw new ApiException(HttpStatus.CONFLICT, ErrorCode.IDEMPOTENCY_CONFLICT,
+                    "Idempotency key reused with different payload");
         }
         if (rec.getBooking() == null) {
             return null;

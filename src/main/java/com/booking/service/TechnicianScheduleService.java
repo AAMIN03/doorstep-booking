@@ -18,8 +18,8 @@ public class TechnicianScheduleService {
     private final TechnicianRepository technicianRepository;
     private final BookingQueryService bookingQueryService;
 
-    public TechnicianScheduleService(
-            TechnicianRepository technicianRepository, BookingQueryService bookingQueryService) {
+    public TechnicianScheduleService(TechnicianRepository technicianRepository,
+            BookingQueryService bookingQueryService) {
         this.technicianRepository = technicianRepository;
         this.bookingQueryService = bookingQueryService;
     }
@@ -27,22 +27,19 @@ public class TechnicianScheduleService {
     /**
      * Paginated bookings for a technician. See {@link BookingQueryService#technicianSchedule} for filter semantics.
      *
-     * @param startDate optional IST range start (defaults to {@code date})
-     * @param endDate optional IST range end (defaults to {@code date})
+     * @param startDate
+     *            optional IST range start (defaults to {@code date})
+     * @param endDate
+     *            optional IST range end (defaults to {@code date})
      */
     @Transactional(readOnly = true)
-    public ScheduleResponse schedule(
-            Long technicianId,
-            LocalDate date,
-            LocalDate startDate,
-            LocalDate endDate,
-            BookingStatus status,
-            Pageable pageable) {
+    public ScheduleResponse schedule(Long technicianId, LocalDate date, LocalDate startDate, LocalDate endDate,
+            BookingStatus status, Pageable pageable) {
         if (!technicianRepository.existsById(technicianId)) {
             throw new ApiException(HttpStatus.NOT_FOUND, ErrorCode.UNKNOWN_TECHNICIAN, "Technician not found");
         }
-        PageResponse<com.booking.dto.BookingResponse> page = bookingQueryService.technicianSchedule(
-                technicianId, date, startDate, endDate, status, pageable);
+        PageResponse<com.booking.dto.BookingResponse> page = bookingQueryService.technicianSchedule(technicianId, date,
+                startDate, endDate, status, pageable);
         return new ScheduleResponse(technicianId, date, page);
     }
 }

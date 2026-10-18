@@ -14,9 +14,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
 /**
  * Assigns a per-request correlation id for logging and clients.
  * <p>
- * Reads {@value #REQUEST_ID_HEADER} when present; otherwise generates a UUID. The id is stored in
- * SLF4J {@link MDC} under {@value #MDC_REQUEST_ID_KEY} for structured JSON logs and echoed on the
- * response as {@value #REQUEST_ID_HEADER}. MDC is cleared after the request completes.
+ * Reads {@value #REQUEST_ID_HEADER} when present; otherwise generates a UUID. The id is stored in SLF4J {@link MDC}
+ * under {@value #MDC_REQUEST_ID_KEY} for structured JSON logs and echoed on the response as
+ * {@value #REQUEST_ID_HEADER}. MDC is cleared after the request completes.
  */
 @Component
 public class RequestIdFilter extends OncePerRequestFilter implements Ordered {

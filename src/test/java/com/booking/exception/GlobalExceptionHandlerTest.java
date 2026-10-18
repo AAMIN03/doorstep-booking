@@ -44,7 +44,8 @@ class GlobalExceptionHandlerTest {
     @BeforeEach
     void setUp() {
         handler = new GlobalExceptionHandler(timeService);
-        when(timeService.toIst(any(Instant.class))).thenReturn(ZonedDateTime.of(2026, 10, 18, 14, 0, 0, 0, ZoneId.of("Asia/Kolkata")));
+        when(timeService.toIst(any(Instant.class)))
+                .thenReturn(ZonedDateTime.of(2026, 10, 18, 14, 0, 0, 0, ZoneId.of("Asia/Kolkata")));
     }
 
     @Test
@@ -55,21 +56,21 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ErrorResponse> response = handler.handleMissingParameter(ex, req);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertErrorBody(
-                response.getBody(), 400, "BAD_REQUEST", "INVALID_PARAMETER", "Parameter 'serviceId': is required", "/availability");
+        assertErrorBody(response.getBody(), 400, "BAD_REQUEST", "INVALID_PARAMETER",
+                "Parameter 'serviceId': is required", "/availability");
     }
 
     @Test
     void typeMismatchUsesInvalidParameterCode() {
         HttpServletRequest req = request("/availability");
-        MethodArgumentTypeMismatchException ex =
-                new MethodArgumentTypeMismatchException("bad", LocalDate.class, "date", null, null);
+        MethodArgumentTypeMismatchException ex = new MethodArgumentTypeMismatchException("bad", LocalDate.class, "date",
+                null, null);
 
         ResponseEntity<ErrorResponse> response = handler.handleTypeMismatch(ex, req);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertErrorBody(
-                response.getBody(), 400, "BAD_REQUEST", "INVALID_PARAMETER", "Parameter 'date': invalid value 'bad'", "/availability");
+        assertErrorBody(response.getBody(), 400, "BAD_REQUEST", "INVALID_PARAMETER",
+                "Parameter 'date': invalid value 'bad'", "/availability");
     }
 
     @Test
@@ -80,13 +81,8 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ErrorResponse> response = handler.handleUnreadable(ex, req);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertErrorBody(
-                response.getBody(),
-                400,
-                "BAD_REQUEST",
-                "MALFORMED_REQUEST",
-                "Request body is malformed or unreadable",
-                "/bookings");
+        assertErrorBody(response.getBody(), 400, "BAD_REQUEST", "MALFORMED_REQUEST",
+                "Request body is malformed or unreadable", "/bookings");
     }
 
     @Test
@@ -99,13 +95,8 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ErrorResponse> response = handler.handleValidation(ex, req);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertErrorBody(
-                response.getBody(),
-                400,
-                "BAD_REQUEST",
-                "VALIDATION_ERROR",
-                "Field 'customerPhone': must be a valid Indian mobile number",
-                "/bookings");
+        assertErrorBody(response.getBody(), 400, "BAD_REQUEST", "VALIDATION_ERROR",
+                "Field 'customerPhone': must be a valid Indian mobile number", "/bookings");
     }
 
     @Test
@@ -116,8 +107,8 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ErrorResponse> response = handler.handleMissingHeader(ex, req);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertErrorBody(
-                response.getBody(), 400, "BAD_REQUEST", "VALIDATION_ERROR", "Header 'Idempotency-Key' is required", "/bookings");
+        assertErrorBody(response.getBody(), 400, "BAD_REQUEST", "VALIDATION_ERROR",
+                "Header 'Idempotency-Key' is required", "/bookings");
     }
 
     @Test
@@ -137,12 +128,7 @@ class GlobalExceptionHandlerTest {
 
         ResponseEntity<ErrorResponse> response = handler.handleLocking(ex, req);
 
-        assertErrorBody(
-                response.getBody(),
-                409,
-                "CONFLICT",
-                "CONFLICT",
-                "Booking temporarily contended, please retry",
+        assertErrorBody(response.getBody(), 409, "CONFLICT", "CONFLICT", "Booking temporarily contended, please retry",
                 "/bookings");
     }
 
@@ -152,7 +138,8 @@ class GlobalExceptionHandlerTest {
 
         ResponseEntity<ErrorResponse> response = handler.handleOther(new RuntimeException("boom"), req);
 
-        assertErrorBody(response.getBody(), 500, "INTERNAL_SERVER_ERROR", "INTERNAL_ERROR", "Unexpected error", "/bookings");
+        assertErrorBody(response.getBody(), 500, "INTERNAL_SERVER_ERROR", "INTERNAL_ERROR", "Unexpected error",
+                "/bookings");
     }
 
     @Test
@@ -169,8 +156,8 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ErrorResponse> response = handler.handleConstraintViolation(ex, req);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertErrorBody(
-                response.getBody(), 400, "BAD_REQUEST", "INVALID_PARAMETER", "Parameter 'pincode': must match pattern", "/availability");
+        assertErrorBody(response.getBody(), 400, "BAD_REQUEST", "INVALID_PARAMETER",
+                "Parameter 'pincode': must match pattern", "/availability");
     }
 
     private static HttpServletRequest request(String uri) {
@@ -179,8 +166,8 @@ class GlobalExceptionHandlerTest {
         return req;
     }
 
-    private static void assertErrorBody(
-            ErrorResponse body, int status, String httpError, String code, String message, String path) {
+    private static void assertErrorBody(ErrorResponse body, int status, String httpError, String code, String message,
+            String path) {
         assertThat(body).isNotNull();
         assertThat(body.code()).isEqualTo(code);
         assertThat(body.message()).isEqualTo(message);

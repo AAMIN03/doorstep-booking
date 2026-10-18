@@ -5,8 +5,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * Configuration for Redis-backed API rate limiting ({@link com.booking.web.RateLimitFilter}).
  *
- * <p>Prefix {@code rate-limit.*} in {@code application.properties}. When {@link #enabled} is false,
- * or Redis cannot be reached at startup, limiting is skipped so the app still serves traffic.
+ * <p>
+ * Prefix {@code rate-limit.*} in {@code application.properties}. When {@link #enabled} is false, or Redis cannot be
+ * reached at startup, limiting is skipped so the app still serves traffic.
  */
 @ConfigurationProperties(prefix = "rate-limit")
 public class RateLimitProperties {

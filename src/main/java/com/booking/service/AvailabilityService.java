@@ -30,12 +30,8 @@ public class AvailabilityService {
     private final SchedulingRules rules;
     private final TimeService timeService;
 
-    public AvailabilityService(
-            ServiceRepository serviceRepository,
-            ZonePincodeRepository zonePincodeRepository,
-            TechnicianRepository technicianRepository,
-            BookingRepository bookingRepository,
-            SchedulingRules rules,
+    public AvailabilityService(ServiceRepository serviceRepository, ZonePincodeRepository zonePincodeRepository,
+            TechnicianRepository technicianRepository, BookingRepository bookingRepository, SchedulingRules rules,
             TimeService timeService) {
         this.serviceRepository = serviceRepository;
         this.zonePincodeRepository = zonePincodeRepository;
@@ -47,21 +43,18 @@ public class AvailabilityService {
 
     @Transactional(readOnly = true)
     public AvailabilityResponse getAvailability(Long serviceId, String pincode, LocalDate date) {
-        ServiceEntity service = serviceRepository
-                .findById(serviceId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorCode.UNKNOWN_SERVICE, "Service not found"));
-        ZonePincodeEntity zp = zonePincodeRepository
-                .findByPincodeWithZone(pincode)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorCode.UNKNOWN_PINCODE, "Pincode not served"));
-        List<TechnicianEntity> eligible =
-                technicianRepository.findEligible(zp.getZone().getId(), service.getRequiredSkill());
+        ServiceEntity service = serviceRepository.findById(serviceId).orElseThrow(
+                () -> new ApiException(HttpStatus.NOT_FOUND, ErrorCode.UNKNOWN_SERVICE, "Service not found"));
+        ZonePincodeEntity zp = zonePincodeRepository.findByPincodeWithZone(pincode).orElseThrow(
+                () -> new ApiException(HttpStatus.NOT_FOUND, ErrorCode.UNKNOWN_PINCODE, "Pincode not served"));
+        List<TechnicianEntity> eligible = technicianRepository.findEligible(zp.getZone().getId(),
+                service.getRequiredSkill());
         List<SlotDto> slots = new ArrayList<>();
         int duration = service.getDurationMinutes();
         Instant dayStart = timeService.istToUtc(date, LocalTime.MIN);
         Instant dayEnd = timeService.istToUtc(date.plusDays(1), LocalTime.MIN);
         List<Long> techIds = eligible.stream().map(TechnicianEntity::getId).toList();
-        List<com.booking.entity.BookingEntity> dayBookings = techIds.isEmpty()
-                ? List.of()
+        List<com.booking.entity.BookingEntity> dayBookings = techIds.isEmpty() ? List.of()
                 : bookingRepository.findActiveInRange(techIds, dayStart.minus(SchedulingRules.TRAVEL_BUFFER), dayEnd);
 
         LocalTime slot = LocalTime.MIDNIGHT;
@@ -77,18 +70,14 @@ public class AvailabilityService {
         return new AvailabilityResponse(serviceId, pincode, date, slots);
     }
 
-    private boolean anyTechnicianAvailable(
-            List<TechnicianEntity> eligible,
-            List<com.booking.entity.BookingEntity> bookings,
-            Instant start,
-            Instant end) {
+    private boolean anyTechnicianAvailable(List<TechnicianEntity> eligible,
+            List<com.booking.entity.BookingEntity> bookings, Instant start, Instant end) {
         for (TechnicianEntity tech : eligible) {
             if (!rules.fitsShift(tech, start, end)) {
                 continue;
             }
             List<com.booking.entity.BookingEntity> techBookings = bookings.stream()
-                    .filter(b -> b.getTechnician().getId().equals(tech.getId()))
-                    .toList();
+                    .filter(b -> b.getTechnician().getId().equals(tech.getId())).toList();
             if (!rules.conflicts(start, end, techBookings)) {
                 return true;
             }

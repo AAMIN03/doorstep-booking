@@ -5,9 +5,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 
 @SpringBootTest
-@Import({TestcontainersConfiguration.class, TestClockConfig.class})
+@Import({ TestcontainersConfiguration.class, TestClockConfig.class })
 class DoorstepBookingApplicationTests {
 
     @Test
-    void contextLoads() {}
+    void contextLoads() {
+    }
 }

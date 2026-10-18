@@ -18,10 +18,9 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.bind.MissingServletRequestParameterException;
 
 /**
- * Maps exceptions to a single {@link com.booking.dto.ErrorResponse} JSON shape.
- * Client binding errors return 400 with {@link ErrorCode#VALIDATION_ERROR},
- * {@link ErrorCode#INVALID_PARAMETER}, or {@link ErrorCode#MALFORMED_REQUEST} and standardized
- * {@code message} patterns ({@code Field '…'}, {@code Parameter '…'}, {@code Header '…'}).
+ * Maps exceptions to a single {@link com.booking.dto.ErrorResponse} JSON shape. Client binding errors return 400 with
+ * {@link ErrorCode#VALIDATION_ERROR}, {@link ErrorCode#INVALID_PARAMETER}, or {@link ErrorCode#MALFORMED_REQUEST} and
+ * standardized {@code message} patterns ({@code Field '…'}, {@code Parameter '…'}, {@code Header '…'}).
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -39,74 +38,56 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException ex, HttpServletRequest req) {
-        String msg = ex.getBindingResult().getFieldErrors().stream()
-                .findFirst()
-                .map(f -> fieldMessage(f.getField(), f.getDefaultMessage()))
-                .orElse("Request body failed validation");
+        String msg = ex.getBindingResult().getFieldErrors().stream().findFirst()
+                .map(f -> fieldMessage(f.getField(), f.getDefaultMessage())).orElse("Request body failed validation");
         return body(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR, msg, req.getRequestURI());
     }
 
     @ExceptionHandler(MissingRequestHeaderException.class)
     public ResponseEntity<ErrorResponse> handleMissingHeader(MissingRequestHeaderException ex, HttpServletRequest req) {
-        return body(
-                HttpStatus.BAD_REQUEST,
-                ErrorCode.VALIDATION_ERROR,
-                headerRequired(ex.getHeaderName()),
+        return body(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR, headerRequired(ex.getHeaderName()),
                 req.getRequestURI());
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleUnreadable(HttpMessageNotReadableException ex, HttpServletRequest req) {
-        return body(
-                HttpStatus.BAD_REQUEST,
-                ErrorCode.MALFORMED_REQUEST,
-                "Request body is malformed or unreadable",
+        return body(HttpStatus.BAD_REQUEST, ErrorCode.MALFORMED_REQUEST, "Request body is malformed or unreadable",
                 req.getRequestURI());
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
-    public ResponseEntity<ErrorResponse> handleTypeMismatch(
-            MethodArgumentTypeMismatchException ex, HttpServletRequest req) {
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex,
+            HttpServletRequest req) {
         String detail = ex.getValue() != null ? "invalid value '" + ex.getValue() + "'" : "invalid value";
-        return body(
-                HttpStatus.BAD_REQUEST,
-                ErrorCode.INVALID_PARAMETER,
-                parameterMessage(ex.getName(), detail),
+        return body(HttpStatus.BAD_REQUEST, ErrorCode.INVALID_PARAMETER, parameterMessage(ex.getName(), detail),
                 req.getRequestURI());
     }
 
     @ExceptionHandler(MissingServletRequestParameterException.class)
-    public ResponseEntity<ErrorResponse> handleMissingParameter(
-            MissingServletRequestParameterException ex, HttpServletRequest req) {
-        return body(
-                HttpStatus.BAD_REQUEST,
-                ErrorCode.INVALID_PARAMETER,
-                parameterMessage(ex.getParameterName(), "is required"),
-                req.getRequestURI());
+    public ResponseEntity<ErrorResponse> handleMissingParameter(MissingServletRequestParameterException ex,
+            HttpServletRequest req) {
+        return body(HttpStatus.BAD_REQUEST, ErrorCode.INVALID_PARAMETER,
+                parameterMessage(ex.getParameterName(), "is required"), req.getRequestURI());
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
-    public ResponseEntity<ErrorResponse> handleConstraintViolation(
-            ConstraintViolationException ex, HttpServletRequest req) {
-        String msg = ex.getConstraintViolations().stream()
-                .findFirst()
-                .map(GlobalExceptionHandler::constraintMessage)
+    public ResponseEntity<ErrorResponse> handleConstraintViolation(ConstraintViolationException ex,
+            HttpServletRequest req) {
+        String msg = ex.getConstraintViolations().stream().findFirst().map(GlobalExceptionHandler::constraintMessage)
                 .orElse("Request parameter failed validation");
         return body(HttpStatus.BAD_REQUEST, ErrorCode.INVALID_PARAMETER, msg, req.getRequestURI());
     }
 
     @ExceptionHandler(PessimisticLockingFailureException.class)
     public ResponseEntity<ErrorResponse> handleLocking(PessimisticLockingFailureException ex, HttpServletRequest req) {
-        return body(
-                HttpStatus.CONFLICT,
-                ErrorCode.CONFLICT,
-                "Booking temporarily contended, please retry",
+        return body(HttpStatus.CONFLICT, ErrorCode.CONFLICT, "Booking temporarily contended, please retry",
                 req.getRequestURI());
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleOther(Exception ex, HttpServletRequest req) {
-        return body(HttpStatus.INTERNAL_SERVER_ERROR, ErrorCode.INTERNAL_ERROR, "Unexpected error", req.getRequestURI());
+        return body(HttpStatus.INTERNAL_SERVER_ERROR, ErrorCode.INTERNAL_ERROR, "Unexpected error",
+                req.getRequestURI());
     }
 
     private static String fieldMessage(String field, String detail) {

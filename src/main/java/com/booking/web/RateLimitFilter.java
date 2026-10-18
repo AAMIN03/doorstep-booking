@@ -20,9 +20,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
 /**
  * Applies a shared token-bucket limit (via {@link RateLimitOperations}) to booking API routes.
  * <p>
- * Limited paths: {@code /availability}, {@code /bookings}, {@code /technicians/{id}/schedule}.
- * Actuator and other routes are excluded. Client key is derived from {@code X-Forwarded-For} (first
- * hop) or {@link HttpServletRequest#getRemoteAddr()}. On exceed, responds with HTTP 429 and
+ * Limited paths: {@code /availability}, {@code /bookings}, {@code /technicians/{id}/schedule}. Actuator and other
+ * routes are excluded. Client key is derived from {@code X-Forwarded-For} (first hop) or
+ * {@link HttpServletRequest#getRemoteAddr()}. On exceed, responds with HTTP 429 and
  * {@link ErrorCode#RATE_LIMIT_EXCEEDED}.
  */
 @Component
@@ -32,8 +32,8 @@ public class RateLimitFilter extends OncePerRequestFilter implements Ordered {
     private final TimeService timeService;
     private final ObjectMapper objectMapper;
 
-    public RateLimitFilter(
-            RateLimitOperations rateLimitOperations, TimeService timeService, ObjectMapper objectMapper) {
+    public RateLimitFilter(RateLimitOperations rateLimitOperations, TimeService timeService,
+            ObjectMapper objectMapper) {
         this.rateLimitOperations = rateLimitOperations;
         this.timeService = timeService;
         this.objectMapper = objectMapper;
@@ -85,13 +85,9 @@ public class RateLimitFilter extends OncePerRequestFilter implements Ordered {
     }
 
     private void writeTooManyRequests(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        ErrorResponse body = new ErrorResponse(
-                timeService.toIst(Instant.now()),
-                HttpStatus.TOO_MANY_REQUESTS.value(),
-                HttpStatus.TOO_MANY_REQUESTS.name(),
-                ErrorCode.RATE_LIMIT_EXCEEDED.name(),
-                "Rate limit exceeded. Try again later.",
-                request.getRequestURI());
+        ErrorResponse body = new ErrorResponse(timeService.toIst(Instant.now()), HttpStatus.TOO_MANY_REQUESTS.value(),
+                HttpStatus.TOO_MANY_REQUESTS.name(), ErrorCode.RATE_LIMIT_EXCEEDED.name(),
+                "Rate limit exceeded. Try again later.", request.getRequestURI());
         response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         objectMapper.writeValue(response.getOutputStream(), body);

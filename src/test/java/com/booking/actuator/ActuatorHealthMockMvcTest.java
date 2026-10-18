@@ -17,22 +17,16 @@ import org.springframework.test.web.servlet.MockMvc;
 /**
  * Exercises {@code GET /actuator/health} without MySQL or Testcontainers.
  * <p>
- * Uses a minimal {@link TestApplication} (auto-configuration only, no {@code com.booking} component scan)
- * with JDBC/JPA/Flyway auto-config excluded and {@code management.health.db.enabled=false}, so the health
- * endpoint reports {@code UP} from the servlet stack alone. {@link RequestIdFilter} is imported explicitly
- * to mirror production filter behavior on actuator routes.
+ * Uses a minimal {@link TestApplication} (auto-configuration only, no {@code com.booking} component scan) with
+ * JDBC/JPA/Flyway auto-config excluded and {@code management.health.db.enabled=false}, so the health endpoint reports
+ * {@code UP} from the servlet stack alone. {@link RequestIdFilter} is imported explicitly to mirror production filter
+ * behavior on actuator routes.
  */
-@SpringBootTest(
-        classes = ActuatorHealthMockMvcTest.TestApplication.class,
-        webEnvironment = SpringBootTest.WebEnvironment.MOCK,
-        properties = {
-            "management.endpoints.web.exposure.include=health",
-            "management.health.db.enabled=false",
-            "spring.autoconfigure.exclude="
-                    + "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,"
-                    + "org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,"
-                    + "org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration"
-        })
+@SpringBootTest(classes = ActuatorHealthMockMvcTest.TestApplication.class, webEnvironment = SpringBootTest.WebEnvironment.MOCK, properties = {
+        "management.endpoints.web.exposure.include=health", "management.health.db.enabled=false",
+        "spring.autoconfigure.exclude=" + "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,"
+                + "org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,"
+                + "org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration" })
 @AutoConfigureMockMvc
 @Import(RequestIdFilter.class)
 class ActuatorHealthMockMvcTest {
@@ -42,12 +36,11 @@ class ActuatorHealthMockMvcTest {
 
     @Test
     void healthEndpointReturnsUpWithRequestId() throws Exception {
-        mockMvc.perform(get("/actuator/health"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("UP"))
+        mockMvc.perform(get("/actuator/health")).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("UP"))
                 .andExpect(header().exists(RequestIdFilter.REQUEST_ID_HEADER));
     }
 
     @EnableAutoConfiguration
-    static class TestApplication {}
+    static class TestApplication {
+    }
 }

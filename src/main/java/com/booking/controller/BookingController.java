@@ -38,11 +38,8 @@ public class BookingController {
     private final BookingQueryService bookingQueryService;
     private final TechnicianScheduleService scheduleService;
 
-    public BookingController(
-            AvailabilityService availabilityService,
-            BookingService bookingService,
-            BookingQueryService bookingQueryService,
-            TechnicianScheduleService scheduleService) {
+    public BookingController(AvailabilityService availabilityService, BookingService bookingService,
+            BookingQueryService bookingQueryService, TechnicianScheduleService scheduleService) {
         this.availabilityService = availabilityService;
         this.bookingService = bookingService;
         this.bookingQueryService = bookingQueryService;
@@ -50,9 +47,7 @@ public class BookingController {
     }
 
     @GetMapping("/availability")
-    public AvailabilityResponse availability(
-            @RequestParam Long serviceId,
-            @RequestParam String pincode,
+    public AvailabilityResponse availability(@RequestParam Long serviceId, @RequestParam String pincode,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return availabilityService.getAvailability(serviceId, pincode, date);
     }
@@ -63,10 +58,8 @@ public class BookingController {
      * (e.g. {@code sort=startTime,desc}).
      */
     @GetMapping("/bookings")
-    public PageResponse<BookingResponse> listByPhone(
-            @RequestHeader(CustomerIdentity.HEADER) String customerPhone,
-            @RequestParam String phone,
-            @RequestParam(required = false) BookingStatus status,
+    public PageResponse<BookingResponse> listByPhone(@RequestHeader(CustomerIdentity.HEADER) String customerPhone,
+            @RequestParam String phone, @RequestParam(required = false) BookingStatus status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @PageableDefault(size = 20, sort = "startTime", direction = Sort.Direction.DESC) Pageable pageable) {
@@ -74,30 +67,26 @@ public class BookingController {
     }
 
     @PostMapping("/bookings")
-    public ResponseEntity<BookingResponse> create(
-            @RequestHeader("Idempotency-Key") String idempotencyKey,
+    public ResponseEntity<BookingResponse> create(@RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody CreateBookingRequest request) {
         BookingService.BookingResult result = bookingService.create(idempotencyKey, request);
         if (result.created()) {
-            return ResponseEntity.created(URI.create("/bookings/" + result.response().id()))
-                    .body(result.response());
+            return ResponseEntity.created(URI.create("/bookings/" + result.response().id())).body(result.response());
         }
         return ResponseEntity.ok(result.response());
     }
 
     @GetMapping("/bookings/{id}")
-    public BookingResponse get(
-            @PathVariable Long id, @RequestHeader(CustomerIdentity.HEADER) String customerPhone) {
+    public BookingResponse get(@PathVariable Long id, @RequestHeader(CustomerIdentity.HEADER) String customerPhone) {
         return bookingService.getBooking(id, customerPhone);
     }
 
     /**
-     * Cancels a confirmed booking. Returns 404 {@code UNKNOWN_BOOKING}, or 409
-     * {@code INVALID_CANCELLATION} / {@code LATE_CANCELLATION} per {@link com.booking.service.BookingService#cancel(Long)}.
+     * Cancels a confirmed booking. Returns 404 {@code UNKNOWN_BOOKING}, or 409 {@code INVALID_CANCELLATION} /
+     * {@code LATE_CANCELLATION} per {@link com.booking.service.BookingService#cancel(Long)}.
      */
     @PostMapping("/bookings/{id}/cancel")
-    public BookingResponse cancel(
-            @PathVariable Long id, @RequestHeader(CustomerIdentity.HEADER) String customerPhone) {
+    public BookingResponse cancel(@PathVariable Long id, @RequestHeader(CustomerIdentity.HEADER) String customerPhone) {
         return bookingService.cancel(id, customerPhone);
     }
 
@@ -107,8 +96,7 @@ public class BookingController {
      * {@code sort} (default {@code startTime,asc}).
      */
     @GetMapping("/technicians/{id}/schedule")
-    public ScheduleResponse schedule(
-            @PathVariable Long id,
+    public ScheduleResponse schedule(@PathVariable Long id,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,

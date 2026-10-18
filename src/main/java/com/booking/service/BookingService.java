@@ -26,12 +26,8 @@ public class BookingService {
     private final SchedulingRules rules;
     private final BookingMapper mapper;
 
-    public BookingService(
-            BookingRepository bookingRepository,
-            BookingTxService bookingTxService,
-            IdempotencyService idempotencyService,
-            SchedulingRules rules,
-            BookingMapper mapper) {
+    public BookingService(BookingRepository bookingRepository, BookingTxService bookingTxService,
+            IdempotencyService idempotencyService, SchedulingRules rules, BookingMapper mapper) {
         this.bookingRepository = bookingRepository;
         this.bookingTxService = bookingTxService;
         this.idempotencyService = idempotencyService;
@@ -40,8 +36,8 @@ public class BookingService {
     }
 
     /**
-     * Returns a booking only when {@code customerPhone} matches the stored {@code customerPhone}
-     * (same 404 as unknown id when it does not).
+     * Returns a booking only when {@code customerPhone} matches the stored {@code customerPhone} (same 404 as unknown
+     * id when it does not).
      */
     @Transactional(readOnly = true)
     public BookingResponse getBooking(Long id, String customerPhone) {
@@ -60,8 +56,8 @@ public class BookingService {
         } catch (DataIntegrityViolationException ex) {
             return waitForIdempotentResult(idempotencyKey, hash);
         } catch (PessimisticLockingFailureException ex) {
-            throw new ApiException(
-                    HttpStatus.CONFLICT, ErrorCode.CONFLICT, "Booking temporarily contended, please retry");
+            throw new ApiException(HttpStatus.CONFLICT, ErrorCode.CONFLICT,
+                    "Booking temporarily contended, please retry");
         }
     }
 
@@ -82,11 +78,12 @@ public class BookingService {
     }
 
     /**
-     * Cancels a booking under pessimistic lock. Evaluates status and {@link SchedulingRules#cancelTooLate}
-     * in order: already {@link BookingStatus#CANCELLED}, {@link BookingStatus#COMPLETED}, then within one hour of start.
+     * Cancels a booking under pessimistic lock. Evaluates status and {@link SchedulingRules#cancelTooLate} in order:
+     * already {@link BookingStatus#CANCELLED}, {@link BookingStatus#COMPLETED}, then within one hour of start.
      *
-     * @throws com.booking.exception.ApiException 404 {@link ErrorCode#UNKNOWN_BOOKING}; 409
-     *     {@link ErrorCode#INVALID_CANCELLATION} or {@link ErrorCode#LATE_CANCELLATION}
+     * @throws com.booking.exception.ApiException
+     *             404 {@link ErrorCode#UNKNOWN_BOOKING}; 409 {@link ErrorCode#INVALID_CANCELLATION} or
+     *             {@link ErrorCode#LATE_CANCELLATION}
      */
     @Transactional
     public BookingResponse cancel(Long bookingId, String customerPhone) {
@@ -96,20 +93,21 @@ public class BookingService {
             throw new ApiException(HttpStatus.CONFLICT, ErrorCode.INVALID_CANCELLATION, "Booking already cancelled");
         }
         if (booking.getStatus() == BookingStatus.COMPLETED) {
-            throw new ApiException(HttpStatus.CONFLICT, ErrorCode.INVALID_CANCELLATION, "Completed booking cannot be cancelled");
+            throw new ApiException(HttpStatus.CONFLICT, ErrorCode.INVALID_CANCELLATION,
+                    "Completed booking cannot be cancelled");
         }
         if (rules.cancelTooLate(booking.getStartTime())) {
-            throw new ApiException(HttpStatus.CONFLICT, ErrorCode.LATE_CANCELLATION, "Cancellation must be at least 1 hour before start");
+            throw new ApiException(HttpStatus.CONFLICT, ErrorCode.LATE_CANCELLATION,
+                    "Cancellation must be at least 1 hour before start");
         }
         booking.setStatus(BookingStatus.CANCELLED);
         return mapper.toResponse(booking);
     }
 
     private BookingEntity requireBookingOwnedBy(Long id, String customerPhone, boolean forUpdate) {
-        BookingEntity booking = (forUpdate
-                        ? bookingRepository.findDetailedByIdForUpdate(id)
-                        : bookingRepository.findDetailedById(id))
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorCode.UNKNOWN_BOOKING, "Booking not found"));
+        BookingEntity booking = (forUpdate ? bookingRepository.findDetailedByIdForUpdate(id)
+                : bookingRepository.findDetailedById(id)).orElseThrow(
+                        () -> new ApiException(HttpStatus.NOT_FOUND, ErrorCode.UNKNOWN_BOOKING, "Booking not found"));
         if (!booking.getCustomerPhone().equals(customerPhone)) {
             throw new ApiException(HttpStatus.NOT_FOUND, ErrorCode.UNKNOWN_BOOKING, "Booking not found");
         }
@@ -117,7 +115,8 @@ public class BookingService {
     }
 
     static String hash(CreateBookingRequest request) {
-        String raw = request.customerPhone() + "|" + request.serviceId() + "|" + request.pincode() + "|" + request.startTime();
+        String raw = request.customerPhone() + "|" + request.serviceId() + "|" + request.pincode() + "|"
+                + request.startTime();
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(raw.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest);
@@ -126,5 +125,6 @@ public class BookingService {
         }
     }
 
-    public record BookingResult(BookingResponse response, boolean created) {}
+    public record BookingResult(BookingResponse response, boolean created) {
+    }
 }

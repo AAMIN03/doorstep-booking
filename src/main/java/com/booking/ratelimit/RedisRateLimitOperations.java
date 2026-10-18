@@ -31,7 +31,9 @@ public final class RedisRateLimitOperations implements RateLimitOperations {
     /**
      * Connects to Redis and builds a proxy manager. Throws if Redis is not reachable.
      *
-     * @param properties limit and Redis connection settings
+     * @param properties
+     *            limit and Redis connection settings
+     *
      * @return operations backed by Redis
      */
     public static RedisRateLimitOperations create(RateLimitProperties properties) {
@@ -47,13 +49,9 @@ public final class RedisRateLimitOperations implements RateLimitOperations {
         int capacity = properties.getRequestsPerMinute();
         Duration window = Duration.ofMinutes(properties.getWindowMinutes());
         BucketConfiguration configuration = BucketConfiguration.builder()
-                .addLimit(Bandwidth.builder().capacity(capacity).refillGreedy(capacity, window).build())
-                .build();
-        log.info(
-                "Redis rate limiting active: {} requests per {} minute(s) at {}",
-                capacity,
-                properties.getWindowMinutes(),
-                redisUri);
+                .addLimit(Bandwidth.builder().capacity(capacity).refillGreedy(capacity, window).build()).build();
+        log.info("Redis rate limiting active: {} requests per {} minute(s) at {}", capacity,
+                properties.getWindowMinutes(), redisUri);
         return new RedisRateLimitOperations(proxyManager, configuration);
     }
 

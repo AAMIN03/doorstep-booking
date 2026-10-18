@@ -38,31 +38,25 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Long> {
     List<BookingEntity> findDetailedByIdIn(@Param("ids") List<Long> ids);
 
     /** Paginated id query for {@code GET /bookings?phone=} with optional status and start-time range. */
-    @Query(
-            value = """
+    @Query(value = """
             select b.id from BookingEntity b
             where b.customerPhone = :phone
               and (:status is null or b.status = :status)
               and (:startInclusive is null or b.startTime >= :startInclusive)
               and (:endExclusive is null or b.startTime < :endExclusive)
-            """,
-            countQuery = """
+            """, countQuery = """
             select count(b) from BookingEntity b
             where b.customerPhone = :phone
               and (:status is null or b.status = :status)
               and (:startInclusive is null or b.startTime >= :startInclusive)
               and (:endExclusive is null or b.startTime < :endExclusive)
             """)
-    Page<Long> findIdsByCustomerPhone(
-            @Param("phone") String phone,
-            @Param("status") BookingStatus status,
-            @Param("startInclusive") Instant startInclusive,
-            @Param("endExclusive") Instant endExclusive,
+    Page<Long> findIdsByCustomerPhone(@Param("phone") String phone, @Param("status") BookingStatus status,
+            @Param("startInclusive") Instant startInclusive, @Param("endExclusive") Instant endExclusive,
             Pageable pageable);
 
     /** Paginated id query for technician schedule with optional status and IST day range. */
-    @Query(
-            value = """
+    @Query(value = """
             select b.id from BookingEntity b
             where b.technician.id = :techId
               and b.startTime >= :dayStart
@@ -71,8 +65,7 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Long> {
                 (:status is not null and b.status = :status)
                 or (:status is null and b.status <> 'CANCELLED')
               )
-            """,
-            countQuery = """
+            """, countQuery = """
             select count(b) from BookingEntity b
             where b.technician.id = :techId
               and b.startTime >= :dayStart
@@ -82,12 +75,8 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Long> {
                 or (:status is null and b.status <> 'CANCELLED')
               )
             """)
-    Page<Long> findIdsForTechnicianSchedule(
-            @Param("techId") Long techId,
-            @Param("status") BookingStatus status,
-            @Param("dayStart") Instant dayStart,
-            @Param("dayEnd") Instant dayEnd,
-            Pageable pageable);
+    Page<Long> findIdsForTechnicianSchedule(@Param("techId") Long techId, @Param("status") BookingStatus status,
+            @Param("dayStart") Instant dayStart, @Param("dayEnd") Instant dayEnd, Pageable pageable);
 
     @Query("""
             select b from BookingEntity b
@@ -96,9 +85,7 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Long> {
               and b.endTime > :rangeStart
               and b.startTime < :rangeEnd
             """)
-    List<BookingEntity> findActiveInRange(
-            @Param("techIds") List<Long> techIds,
-            @Param("rangeStart") Instant rangeStart,
+    List<BookingEntity> findActiveInRange(@Param("techIds") List<Long> techIds, @Param("rangeStart") Instant rangeStart,
             @Param("rangeEnd") Instant rangeEnd);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
@@ -109,10 +96,8 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Long> {
               and b.endTime > :rangeStart
               and b.startTime < :rangeEnd
             """)
-    List<BookingEntity> findActiveInRangeForUpdate(
-            @Param("techIds") List<Long> techIds,
-            @Param("rangeStart") Instant rangeStart,
-            @Param("rangeEnd") Instant rangeEnd);
+    List<BookingEntity> findActiveInRangeForUpdate(@Param("techIds") List<Long> techIds,
+            @Param("rangeStart") Instant rangeStart, @Param("rangeEnd") Instant rangeEnd);
 
     @Query("""
             select b from BookingEntity b
@@ -122,9 +107,7 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Long> {
               and b.startTime < :dayEnd
             order by b.startTime
             """)
-    List<BookingEntity> findScheduleForDay(
-            @Param("techId") Long techId,
-            @Param("dayStart") Instant dayStart,
+    List<BookingEntity> findScheduleForDay(@Param("techId") Long techId, @Param("dayStart") Instant dayStart,
             @Param("dayEnd") Instant dayEnd);
 
     @Query("""
@@ -134,9 +117,6 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Long> {
               and b.startTime >= :dayStart
               and b.startTime < :dayEnd
             """)
-    long countActiveForDay(
-            @Param("techId") Long techId,
-            @Param("dayStart") Instant dayStart,
-            @Param("dayEnd") Instant dayEnd,
-            @Param("cancelled") BookingStatus cancelled);
+    long countActiveForDay(@Param("techId") Long techId, @Param("dayStart") Instant dayStart,
+            @Param("dayEnd") Instant dayEnd, @Param("cancelled") BookingStatus cancelled);
 }

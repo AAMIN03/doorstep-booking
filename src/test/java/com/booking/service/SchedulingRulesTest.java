@@ -68,8 +68,8 @@ class SchedulingRulesTest {
     void overlapDetected() {
         Instant start = Instant.parse("2026-10-20T04:30:00Z");
         Instant end = Instant.parse("2026-10-20T05:30:00Z");
-        BookingEntity existing = booking(
-                Instant.parse("2026-10-20T05:00:00Z"), Instant.parse("2026-10-20T06:00:00Z"), BookingStatus.CONFIRMED);
+        BookingEntity existing = booking(Instant.parse("2026-10-20T05:00:00Z"), Instant.parse("2026-10-20T06:00:00Z"),
+                BookingStatus.CONFIRMED);
         assertTrue(rules.conflicts(start, end, List.of(existing)));
     }
 
@@ -77,8 +77,8 @@ class SchedulingRulesTest {
     void validBoundaryNoOverlap() {
         Instant start = Instant.parse("2026-10-20T04:30:00Z");
         Instant end = Instant.parse("2026-10-20T05:30:00Z");
-        BookingEntity existing = booking(
-                Instant.parse("2026-10-20T06:30:00Z"), Instant.parse("2026-10-20T07:30:00Z"), BookingStatus.CONFIRMED);
+        BookingEntity existing = booking(Instant.parse("2026-10-20T06:30:00Z"), Instant.parse("2026-10-20T07:30:00Z"),
+                BookingStatus.CONFIRMED);
         assertFalse(rules.conflicts(start, end, List.of(existing)));
     }
 
@@ -86,8 +86,8 @@ class SchedulingRulesTest {
     void travelBufferViolation() {
         Instant start = Instant.parse("2026-10-20T05:30:00Z");
         Instant end = Instant.parse("2026-10-20T06:30:00Z");
-        BookingEntity existing = booking(
-                Instant.parse("2026-10-20T04:30:00Z"), Instant.parse("2026-10-20T05:30:00Z"), BookingStatus.CONFIRMED);
+        BookingEntity existing = booking(Instant.parse("2026-10-20T04:30:00Z"), Instant.parse("2026-10-20T05:30:00Z"),
+                BookingStatus.CONFIRMED);
         assertTrue(rules.conflicts(start, end, List.of(existing)));
     }
 
@@ -95,8 +95,8 @@ class SchedulingRulesTest {
     void sufficientTravelBuffer() {
         Instant start = Instant.parse("2026-10-20T06:30:00Z");
         Instant end = Instant.parse("2026-10-20T07:30:00Z");
-        BookingEntity existing = booking(
-                Instant.parse("2026-10-20T04:30:00Z"), Instant.parse("2026-10-20T05:30:00Z"), BookingStatus.CONFIRMED);
+        BookingEntity existing = booking(Instant.parse("2026-10-20T04:30:00Z"), Instant.parse("2026-10-20T05:30:00Z"),
+                BookingStatus.CONFIRMED);
         assertFalse(rules.conflicts(start, end, List.of(existing)));
     }
 
@@ -148,8 +148,8 @@ class SchedulingRulesTest {
     void cancelledBookingDoesNotBlock() {
         Instant start = Instant.parse("2026-10-20T04:30:00Z");
         Instant end = Instant.parse("2026-10-20T05:30:00Z");
-        BookingEntity existing = booking(
-                Instant.parse("2026-10-20T04:30:00Z"), Instant.parse("2026-10-20T05:30:00Z"), BookingStatus.CANCELLED);
+        BookingEntity existing = booking(Instant.parse("2026-10-20T04:30:00Z"), Instant.parse("2026-10-20T05:30:00Z"),
+                BookingStatus.CANCELLED);
         assertFalse(rules.conflicts(start, end, List.of(existing)));
     }
 

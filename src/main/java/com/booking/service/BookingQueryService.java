@@ -39,50 +39,37 @@ public class BookingQueryService {
     /**
      * Lists bookings for a customer phone with optional status and IST date-range filters on {@code startTime}.
      *
-     * @param startDate inclusive IST calendar start (optional)
-     * @param endDate inclusive IST calendar end (optional); must be on or after {@code startDate} when both are set
+     * @param startDate
+     *            inclusive IST calendar start (optional)
+     * @param endDate
+     *            inclusive IST calendar end (optional); must be on or after {@code startDate} when both are set
      */
     @Transactional(readOnly = true)
-    public PageResponse<BookingResponse> listByCustomerPhone(
-            String customerPhoneHeader,
-            String phone,
-            BookingStatus status,
-            LocalDate startDate,
-            LocalDate endDate,
-            Pageable pageable) {
+    public PageResponse<BookingResponse> listByCustomerPhone(String customerPhoneHeader, String phone,
+            BookingStatus status, LocalDate startDate, LocalDate endDate, Pageable pageable) {
         PhoneNumberValidator.requireHeaderMatchesQueryPhone(customerPhoneHeader, phone);
         if (startDate != null && endDate != null && endDate.isBefore(startDate)) {
-            throw new ApiException(
-                    HttpStatus.BAD_REQUEST,
-                    ErrorCode.VALIDATION_ERROR,
+            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR,
                     "Parameter 'endDate': must be on or after startDate");
         }
         Instant startInclusive = startDate != null ? timeService.istToUtc(startDate, LocalTime.MIN) : null;
         Instant endExclusive = endDate != null ? timeService.istToUtc(endDate.plusDays(1), LocalTime.MIN) : null;
-        return loadPage(
-                bookingRepository.findIdsByCustomerPhone(phone, status, startInclusive, endExclusive, pageable),
+        return loadPage(bookingRepository.findIdsByCustomerPhone(phone, status, startInclusive, endExclusive, pageable),
                 pageable);
     }
 
     /**
-     * Paginated technician schedule. Default status filter excludes {@link BookingStatus#CANCELLED}; when {@code status}
-     * is set, only that status is returned. Date range defaults to the single required {@code anchorDate} unless
-     * {@code rangeStart} / {@code rangeEnd} narrow the IST window.
+     * Paginated technician schedule. Default status filter excludes {@link BookingStatus#CANCELLED}; when
+     * {@code status} is set, only that status is returned. Date range defaults to the single required
+     * {@code anchorDate} unless {@code rangeStart} / {@code rangeEnd} narrow the IST window.
      */
     @Transactional(readOnly = true)
-    public PageResponse<BookingResponse> technicianSchedule(
-            Long technicianId,
-            LocalDate anchorDate,
-            LocalDate rangeStart,
-            LocalDate rangeEnd,
-            BookingStatus status,
-            Pageable pageable) {
+    public PageResponse<BookingResponse> technicianSchedule(Long technicianId, LocalDate anchorDate,
+            LocalDate rangeStart, LocalDate rangeEnd, BookingStatus status, Pageable pageable) {
         LocalDate from = rangeStart != null ? rangeStart : anchorDate;
         LocalDate to = rangeEnd != null ? rangeEnd : anchorDate;
         if (to.isBefore(from)) {
-            throw new ApiException(
-                    HttpStatus.BAD_REQUEST,
-                    ErrorCode.VALIDATION_ERROR,
+            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR,
                     "Parameter 'endDate': must be on or after startDate");
         }
         Instant dayStart = timeService.istToUtc(from, LocalTime.MIN);

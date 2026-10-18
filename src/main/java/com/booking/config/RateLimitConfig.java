@@ -30,11 +30,8 @@ public class RateLimitConfig {
         try {
             return RedisRateLimitOperations.create(properties);
         } catch (Exception ex) {
-            log.warn(
-                    "Rate limiting disabled: could not connect to Redis at {}:{} — {}",
-                    properties.getRedis().getHost(),
-                    properties.getRedis().getPort(),
-                    ex.getMessage());
+            log.warn("Rate limiting disabled: could not connect to Redis at {}:{} — {}",
+                    properties.getRedis().getHost(), properties.getRedis().getPort(), ex.getMessage());
             return new NoOpRateLimitOperations();
         }
     }

@@ -14,16 +14,8 @@ public class BookingMapper {
     }
 
     public BookingResponse toResponse(BookingEntity b) {
-        return new BookingResponse(
-                b.getId(),
-                b.getCustomerPhone(),
-                b.getService().getId(),
-                b.getService().getName(),
-                b.getPincode(),
-                timeService.toIst(b.getStartTime()),
-                timeService.toIst(b.getEndTime()),
-                b.getTechnician().getId(),
-                b.getTechnician().getName(),
-                b.getStatus());
+        return new BookingResponse(b.getId(), b.getCustomerPhone(), b.getService().getId(), b.getService().getName(),
+                b.getPincode(), timeService.toIst(b.getStartTime()), timeService.toIst(b.getEndTime()),
+                b.getTechnician().getId(), b.getTechnician().getName(), b.getStatus());
     }
 }
