@@ -1,0 +1,22 @@
+package com.booking.validation;
+
+import com.booking.exception.ApiException;
+import com.booking.exception.ErrorCode;
+import org.springframework.http.HttpStatus;
+
+/** Indian mobile numbers: 10 digits starting with 6–9 (same rule as {@link com.booking.dto.CreateBookingRequest}). */
+public final class PhoneNumberValidator {
+
+    public static final String PATTERN = "^[6-9]\\d{9}$";
+
+    private PhoneNumberValidator() {}
+
+    public static void requireValid(String phone) {
+        if (phone == null || !phone.matches(PATTERN)) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    ErrorCode.VALIDATION_ERROR,
+                    "Parameter 'phone': must be a valid Indian mobile number");
+        }
+    }
+}

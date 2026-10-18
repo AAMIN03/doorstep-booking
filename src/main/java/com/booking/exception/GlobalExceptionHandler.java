@@ -1,0 +1,134 @@
+package com.booking.exception;
+
+import com.booking.dto.ErrorResponse;
+import com.booking.service.TimeService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
+import java.time.ZonedDateTime;
+import org.springframework.dao.PessimisticLockingFailureException;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+
+/**
+ * Maps exceptions to a single {@link com.booking.dto.ErrorResponse} JSON shape.
+ * Client binding errors return 400 with {@link ErrorCode#VALIDATION_ERROR},
+ * {@link ErrorCode#INVALID_PARAMETER}, or {@link ErrorCode#MALFORMED_REQUEST} and standardized
+ * {@code message} patterns ({@code Field '…'}, {@code Parameter '…'}, {@code Header '…'}).
+ */
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+
+    private final TimeService timeService;
+
+    public GlobalExceptionHandler(TimeService timeService) {
+        this.timeService = timeService;
+    }
+
+    @ExceptionHandler(ApiException.class)
+    public ResponseEntity<ErrorResponse> handleApi(ApiException ex, HttpServletRequest req) {
+        return body(ex.getStatus(), ex.getCode(), ex.getMessage(), req.getRequestURI());
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException ex, HttpServletRequest req) {
+        String msg = ex.getBindingResult().getFieldErrors().stream()
+                .findFirst()
+                .map(f -> fieldMessage(f.getField(), f.getDefaultMessage()))
+                .orElse("Request body failed validation");
+        return body(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR, msg, req.getRequestURI());
+    }
+
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ErrorResponse> handleMissingHeader(MissingRequestHeaderException ex, HttpServletRequest req) {
+        return body(
+                HttpStatus.BAD_REQUEST,
+                ErrorCode.VALIDATION_ERROR,
+                headerRequired(ex.getHeaderName()),
+                req.getRequestURI());
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleUnreadable(HttpMessageNotReadableException ex, HttpServletRequest req) {
+        return body(
+                HttpStatus.BAD_REQUEST,
+                ErrorCode.MALFORMED_REQUEST,
+                "Request body is malformed or unreadable",
+                req.getRequestURI());
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(
+            MethodArgumentTypeMismatchException ex, HttpServletRequest req) {
+        String detail = ex.getValue() != null ? "invalid value '" + ex.getValue() + "'" : "invalid value";
+        return body(
+                HttpStatus.BAD_REQUEST,
+                ErrorCode.INVALID_PARAMETER,
+                parameterMessage(ex.getName(), detail),
+                req.getRequestURI());
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ErrorResponse> handleMissingParameter(
+            MissingServletRequestParameterException ex, HttpServletRequest req) {
+        return body(
+                HttpStatus.BAD_REQUEST,
+                ErrorCode.INVALID_PARAMETER,
+                parameterMessage(ex.getParameterName(), "is required"),
+                req.getRequestURI());
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ErrorResponse> handleConstraintViolation(
+            ConstraintViolationException ex, HttpServletRequest req) {
+        String msg = ex.getConstraintViolations().stream()
+                .findFirst()
+                .map(GlobalExceptionHandler::constraintMessage)
+                .orElse("Request parameter failed validation");
+        return body(HttpStatus.BAD_REQUEST, ErrorCode.INVALID_PARAMETER, msg, req.getRequestURI());
+    }
+
+    @ExceptionHandler(PessimisticLockingFailureException.class)
+    public ResponseEntity<ErrorResponse> handleLocking(PessimisticLockingFailureException ex, HttpServletRequest req) {
+        return body(
+                HttpStatus.CONFLICT,
+                ErrorCode.CONFLICT,
+                "Booking temporarily contended, please retry",
+                req.getRequestURI());
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorResponse> handleOther(Exception ex, HttpServletRequest req) {
+        return body(HttpStatus.INTERNAL_SERVER_ERROR, ErrorCode.INTERNAL_ERROR, "Unexpected error", req.getRequestURI());
+    }
+
+    private static String fieldMessage(String field, String detail) {
+        return "Field '" + field + "': " + (detail != null ? detail : "is invalid");
+    }
+
+    private static String parameterMessage(String name, String detail) {
+        return "Parameter '" + name + "': " + detail;
+    }
+
+    private static String headerRequired(String name) {
+        return "Header '" + name + "' is required";
+    }
+
+    private static String constraintMessage(ConstraintViolation<?> violation) {
+        String path = violation.getPropertyPath() != null ? violation.getPropertyPath().toString() : "request";
+        return parameterMessage(path, violation.getMessage());
+    }
+
+    private ResponseEntity<ErrorResponse> body(HttpStatus status, ErrorCode code, String message, String path) {
+        ZonedDateTime ts = timeService.toIst(java.time.Instant.now());
+        return ResponseEntity.status(status)
+                .body(new ErrorResponse(ts, status.value(), status.name(), code.name(), message, path));
+    }
+}
