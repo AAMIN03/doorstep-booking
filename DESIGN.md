@@ -138,8 +138,14 @@ The authoritative guarantee is **InnoDB row locks in MySQL**, not in-memory stat
 | 3 | **Narrow technician lock scope** | Reduce 409s and lock waits as technician pool grows. |
 | 4 | **Reassign API + audit log** | Ops ask; builds on existing lock protocol. |
 | 5 | **Dashboards** (latency, locks, outbox lag, 429s) | Know which of the above actually hurts in prod. |
+| 6 | **Prometheus alerting** on MySQL (connections, pool wait, InnoDB lock waits, deadlocks), API latency histograms, unhandled exception rate, and success rate | Page when a golden signal moves, instead of finding it from customer complaints. |
+| 7 | **JWT authentication** instead of a trusted `X-Customer-Phone` header | The brief allows phone-as-identity. In production a signed, short-lived token stops one caller from reading or cancelling another customer's booking. |
+| 8 | **Allow-list input validation** on every query param, path variable, and body field | Reject control characters, over-long values, and encoded path traversal (`../`, `%2e%2e`). Phone and pincode patterns exist today; the rest of the surface is only type-checked. |
+| 9 | **Security response headers** with explicit values: `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, `Content-Security-Policy`, `X-Frame-Options` or `frame-ancestors`, `Referrer-Policy`, and `Cache-Control: no-store` on booking responses | Browsers and proxies otherwise sniff, frame, or cache customer data. |
+| 10 | **Non-vulnerable HTTP**: TLS 1.2+ only, HTTP/1.1 or HTTP/2, weak ciphers and legacy protocol versions disabled, no `Server` version banner | Closes the findings scanners raise against old protocol versions and stack disclosure. |
+| 11 | **Add the HTTP security headers this service does not send** | There is no security-header filter today, including on 4xx/5xx and `/actuator/health`. Put the header set from row 9 on every response and alert if a probe finds one missing. |
 
-Already in place: idempotency, structured logs + `X-Request-Id`, Redis rate limiting, paginated list/schedule APIs, Testcontainers integration tests.
+Already in place: idempotency, structured logs + `X-Request-Id`, Redis rate limiting, paginated list/schedule APIs, Testcontainers integration tests. JWT, Prometheus alerts, and the security-header filter are not built yet.
 
 ---
 
