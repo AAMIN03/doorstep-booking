@@ -11,6 +11,7 @@ import com.booking.TestClockConfig;
 import com.booking.TestcontainersConfiguration;
 import com.booking.enums.BookingStatus;
 import com.booking.repository.BookingRepository;
+import com.booking.web.CustomerIdentity;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -21,6 +22,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
  * Full-stack API tests (Testcontainers MySQL, fixed {@link com.booking.TestClockConfig} clock).
@@ -30,6 +32,8 @@ import org.springframework.test.web.servlet.MvcResult;
 @AutoConfigureMockMvc
 @Import({TestcontainersConfiguration.class, TestClockConfig.class})
 class BookingApiIntegrationTest {
+
+    private static final String DEFAULT_PHONE = "9876543210";
 
     @Autowired
     private MockMvc mockMvc;
@@ -61,8 +65,12 @@ class BookingApiIntegrationTest {
                 .andReturn();
         long id = ((Number) com.jayway.jsonpath.JsonPath.read(created.getResponse().getContentAsString(), "$.id"))
                 .longValue();
-        mockMvc.perform(get("/bookings/" + id)).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CONFIRMED"));
-        mockMvc.perform(post("/bookings/" + id + "/cancel")).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CANCELLED"));
+        mockMvc.perform(asCustomer(DEFAULT_PHONE, get("/bookings/" + id)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CONFIRMED"));
+        mockMvc.perform(asCustomer(DEFAULT_PHONE, post("/bookings/" + id + "/cancel")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
     }
 
     @Test
@@ -141,7 +149,7 @@ class BookingApiIntegrationTest {
     @Test
     void unknownBookingReturnsNotFound() throws Exception {
         expectApiError(
-                mockMvc.perform(get("/bookings/999999")),
+                mockMvc.perform(asCustomer(DEFAULT_PHONE, get("/bookings/999999"))),
                 404,
                 "NOT_FOUND",
                 "UNKNOWN_BOOKING",
@@ -153,7 +161,7 @@ class BookingApiIntegrationTest {
     @Test
     void cancelUnknownBookingReturnsNotFound() throws Exception {
         expectApiError(
-                mockMvc.perform(post("/bookings/999999/cancel")),
+                mockMvc.perform(asCustomer(DEFAULT_PHONE, post("/bookings/999999/cancel"))),
                 404,
                 "NOT_FOUND",
                 "UNKNOWN_BOOKING",
@@ -173,7 +181,7 @@ class BookingApiIntegrationTest {
         bookingRepository.saveAndFlush(booking);
 
         expectApiError(
-                mockMvc.perform(post("/bookings/" + id + "/cancel")),
+                mockMvc.perform(asCustomer(DEFAULT_PHONE, post("/bookings/" + id + "/cancel"))),
                 409,
                 "CONFLICT",
                 "LATE_CANCELLATION",
@@ -185,10 +193,10 @@ class BookingApiIntegrationTest {
     @Test
     void cancelAlreadyCancelledBookingReturnsConflict() throws Exception {
         long id = createBooking("double-cancel", 1, "400001", "2026-10-20T11:00:00+05:30");
-        mockMvc.perform(post("/bookings/" + id + "/cancel")).andExpect(status().isOk());
+        mockMvc.perform(asCustomer(DEFAULT_PHONE, post("/bookings/" + id + "/cancel"))).andExpect(status().isOk());
 
         expectApiError(
-                mockMvc.perform(post("/bookings/" + id + "/cancel")),
+                mockMvc.perform(asCustomer(DEFAULT_PHONE, post("/bookings/" + id + "/cancel"))),
                 409,
                 "CONFLICT",
                 "INVALID_CANCELLATION",
@@ -207,7 +215,7 @@ class BookingApiIntegrationTest {
         bookingRepository.saveAndFlush(booking);
 
         expectApiError(
-                mockMvc.perform(post("/bookings/" + id + "/cancel")),
+                mockMvc.perform(asCustomer(DEFAULT_PHONE, post("/bookings/" + id + "/cancel"))),
                 409,
                 "CONFLICT",
                 "INVALID_CANCELLATION",
@@ -240,7 +248,7 @@ class BookingApiIntegrationTest {
     void listBookingsByPhoneHappyPath() throws Exception {
         String phone = "9876511111";
         createBookingWithPhone("list-phone-1", phone, 1, "400001", "2026-10-20T10:00:00+05:30");
-        mockMvc.perform(get("/bookings").param("phone", phone))
+        mockMvc.perform(asCustomer(phone, get("/bookings").param("phone", phone)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content").isArray())
                 .andExpect(jsonPath("$.content[0].customerPhone").value(phone))
@@ -255,17 +263,17 @@ class BookingApiIntegrationTest {
         String phone = "9876522222";
         createBookingWithPhone("list-page-a", phone, 1, "400001", "2026-10-20T10:00:00+05:30");
         createBookingWithPhone("list-page-b", phone, 1, "400001", "2026-10-20T14:00:00+05:30");
-        mockMvc.perform(get("/bookings").param("phone", phone).param("size", "1").param("page", "0"))
+        mockMvc.perform(asCustomer(phone, get("/bookings").param("phone", phone).param("size", "1").param("page", "0")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content.length()").value(1))
                 .andExpect(jsonPath("$.size").value(1))
                 .andExpect(jsonPath("$.totalElements").value(2))
                 .andExpect(jsonPath("$.totalPages").value(2));
-        mockMvc.perform(get("/bookings").param("phone", phone).param("size", "1").param("page", "1"))
+        mockMvc.perform(asCustomer(phone, get("/bookings").param("phone", phone).param("size", "1").param("page", "1")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content.length()").value(1))
                 .andExpect(jsonPath("$.page").value(1));
-        mockMvc.perform(get("/bookings").param("phone", phone).param("size", "1").param("page", "5"))
+        mockMvc.perform(asCustomer(phone, get("/bookings").param("phone", phone).param("size", "1").param("page", "5")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content").isEmpty())
                 .andExpect(jsonPath("$.totalElements").value(2));
@@ -273,7 +281,7 @@ class BookingApiIntegrationTest {
 
     @Test
     void listBookingsByPhoneEmptyResult() throws Exception {
-        mockMvc.perform(get("/bookings").param("phone", "9876501234"))
+        mockMvc.perform(asCustomer("9876501234", get("/bookings").param("phone", "9876501234")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content").isEmpty())
                 .andExpect(jsonPath("$.totalElements").value(0))
@@ -283,7 +291,7 @@ class BookingApiIntegrationTest {
     @Test
     void listBookingsByPhoneInvalidPhone() throws Exception {
         expectApiError(
-                mockMvc.perform(get("/bookings").param("phone", "123")),
+                mockMvc.perform(asCustomer("123", get("/bookings").param("phone", "123"))),
                 400,
                 "BAD_REQUEST",
                 "VALIDATION_ERROR",
@@ -294,12 +302,58 @@ class BookingApiIntegrationTest {
     @Test
     void listBookingsMissingPhoneParameter() throws Exception {
         expectApiError(
-                mockMvc.perform(get("/bookings")),
+                mockMvc.perform(asCustomer(DEFAULT_PHONE, get("/bookings"))),
                 400,
                 "BAD_REQUEST",
                 "INVALID_PARAMETER",
                 "Parameter 'phone': is required",
                 "/bookings");
+    }
+
+    @Test
+    void listBookingsMissingCustomerHeader() throws Exception {
+        expectApiError(
+                mockMvc.perform(get("/bookings").param("phone", DEFAULT_PHONE)),
+                400,
+                "BAD_REQUEST",
+                "VALIDATION_ERROR",
+                "Header 'X-Customer-Phone' is required",
+                "/bookings");
+    }
+
+    @Test
+    void listBookingsPhoneHeaderMismatch() throws Exception {
+        expectApiError(
+                mockMvc.perform(asCustomer("9876511111", get("/bookings").param("phone", "9876522222"))),
+                400,
+                "BAD_REQUEST",
+                "VALIDATION_ERROR",
+                "Parameter 'phone': must match Header 'X-Customer-Phone'",
+                "/bookings");
+    }
+
+    @Test
+    void getBookingWrongCustomerPhoneReturnsNotFound() throws Exception {
+        long id = createBooking("wrong-customer-get", 1, "400001", "2026-10-20T15:00:00+05:30");
+        expectApiError(
+                mockMvc.perform(asCustomer("9876599999", get("/bookings/" + id))),
+                404,
+                "NOT_FOUND",
+                "UNKNOWN_BOOKING",
+                "Booking not found",
+                "/bookings/" + id);
+    }
+
+    @Test
+    void cancelBookingWrongCustomerPhoneReturnsNotFound() throws Exception {
+        long id = createBooking("wrong-customer-cancel", 1, "400001", "2026-10-20T16:00:00+05:30");
+        expectApiError(
+                mockMvc.perform(asCustomer("9876599998", post("/bookings/" + id + "/cancel"))),
+                404,
+                "NOT_FOUND",
+                "UNKNOWN_BOOKING",
+                "Booking not found",
+                "/bookings/" + id + "/cancel");
     }
 
     /** {@code status} query param filters on {@link BookingStatus}. */
@@ -308,15 +362,15 @@ class BookingApiIntegrationTest {
         String phone = "9876533333";
         long confirmedId = createBookingWithPhone("list-status-conf", phone, 1, "400001", "2026-10-20T10:00:00+05:30");
         long cancelledId = createBookingWithPhone("list-status-canc", phone, 1, "400001", "2026-10-20T14:00:00+05:30");
-        mockMvc.perform(post("/bookings/" + cancelledId + "/cancel")).andExpect(status().isOk());
+        mockMvc.perform(asCustomer(phone, post("/bookings/" + cancelledId + "/cancel"))).andExpect(status().isOk());
 
-        mockMvc.perform(get("/bookings").param("phone", phone).param("status", "CONFIRMED"))
+        mockMvc.perform(asCustomer(phone, get("/bookings").param("phone", phone).param("status", "CONFIRMED")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.content[0].id").value(confirmedId))
                 .andExpect(jsonPath("$.content[0].status").value("CONFIRMED"));
 
-        mockMvc.perform(get("/bookings").param("phone", phone).param("status", "CANCELLED"))
+        mockMvc.perform(asCustomer(phone, get("/bookings").param("phone", phone).param("status", "CANCELLED")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.content[0].id").value(cancelledId))
@@ -330,17 +384,17 @@ class BookingApiIntegrationTest {
         createBookingWithPhone("list-range-a", phone, 1, "400001", "2026-10-20T10:00:00+05:30");
         createBookingWithPhone("list-range-b", phone, 1, "400001", "2026-10-22T10:00:00+05:30");
 
-        mockMvc.perform(get("/bookings")
+        mockMvc.perform(asCustomer(phone, get("/bookings")
                         .param("phone", phone)
                         .param("startDate", "2026-10-20")
-                        .param("endDate", "2026-10-20"))
+                        .param("endDate", "2026-10-20")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(1));
 
-        mockMvc.perform(get("/bookings")
+        mockMvc.perform(asCustomer(phone, get("/bookings")
                         .param("phone", phone)
                         .param("startDate", "2026-10-21")
-                        .param("endDate", "2026-10-22"))
+                        .param("endDate", "2026-10-22")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(1));
     }
@@ -348,10 +402,10 @@ class BookingApiIntegrationTest {
     @Test
     void listBookingsByPhoneInvalidDateRange() throws Exception {
         expectApiError(
-                mockMvc.perform(get("/bookings")
+                mockMvc.perform(asCustomer("9876543210", get("/bookings")
                         .param("phone", "9876543210")
                         .param("startDate", "2026-10-22")
-                        .param("endDate", "2026-10-20")),
+                        .param("endDate", "2026-10-20"))),
                 400,
                 "BAD_REQUEST",
                 "VALIDATION_ERROR",
@@ -366,11 +420,11 @@ class BookingApiIntegrationTest {
         createBookingWithPhone("list-sort-early", phone, 1, "400001", "2026-10-20T10:00:00+05:30");
         createBookingWithPhone("list-sort-late", phone, 1, "400001", "2026-10-20T14:00:00+05:30");
 
-        mockMvc.perform(get("/bookings").param("phone", phone).param("sort", "startTime,asc"))
+        mockMvc.perform(asCustomer(phone, get("/bookings").param("phone", phone).param("sort", "startTime,asc")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].startTime").value("2026-10-20T10:00:00+05:30"));
 
-        mockMvc.perform(get("/bookings").param("phone", phone).param("sort", "startTime,desc"))
+        mockMvc.perform(asCustomer(phone, get("/bookings").param("phone", phone).param("sort", "startTime,desc")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].startTime").value("2026-10-20T14:00:00+05:30"));
     }
@@ -378,7 +432,7 @@ class BookingApiIntegrationTest {
     @Test
     void technicianScheduleStatusFilter() throws Exception {
         long id = createBooking("sched-filter", 1, "400001", "2026-10-20T10:00:00+05:30");
-        mockMvc.perform(post("/bookings/" + id + "/cancel")).andExpect(status().isOk());
+        mockMvc.perform(asCustomer(DEFAULT_PHONE, post("/bookings/" + id + "/cancel"))).andExpect(status().isOk());
         mockMvc.perform(get("/technicians/1/schedule")
                         .param("date", "2026-10-20")
                         .param("status", "CANCELLED"))
@@ -623,6 +677,10 @@ class BookingApiIntegrationTest {
         return String.format(
                 "{\"customerPhone\":\"%s\",\"serviceId\":%d,\"pincode\":\"%s\",\"startTime\":\"%s\"}",
                 phone, serviceId, pincode, startTime);
+    }
+
+    private static MockHttpServletRequestBuilder asCustomer(String phone, MockHttpServletRequestBuilder request) {
+        return request.header(CustomerIdentity.HEADER, phone);
     }
 
     private int scheduleTotalElements(String technicianId, String anchorDate, String startDate, String endDate)

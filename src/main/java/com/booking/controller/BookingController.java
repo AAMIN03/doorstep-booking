@@ -10,6 +10,7 @@ import com.booking.service.AvailabilityService;
 import com.booking.service.BookingQueryService;
 import com.booking.service.BookingService;
 import com.booking.service.TechnicianScheduleService;
+import com.booking.web.CustomerIdentity;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.time.LocalDate;
@@ -63,12 +64,13 @@ public class BookingController {
      */
     @GetMapping("/bookings")
     public PageResponse<BookingResponse> listByPhone(
+            @RequestHeader(CustomerIdentity.HEADER) String customerPhone,
             @RequestParam String phone,
             @RequestParam(required = false) BookingStatus status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @PageableDefault(size = 20, sort = "startTime", direction = Sort.Direction.DESC) Pageable pageable) {
-        return bookingQueryService.listByCustomerPhone(phone, status, startDate, endDate, pageable);
+        return bookingQueryService.listByCustomerPhone(customerPhone, phone, status, startDate, endDate, pageable);
     }
 
     @PostMapping("/bookings")
@@ -84,8 +86,9 @@ public class BookingController {
     }
 
     @GetMapping("/bookings/{id}")
-    public BookingResponse get(@PathVariable Long id) {
-        return bookingService.getBooking(id);
+    public BookingResponse get(
+            @PathVariable Long id, @RequestHeader(CustomerIdentity.HEADER) String customerPhone) {
+        return bookingService.getBooking(id, customerPhone);
     }
 
     /**
@@ -93,8 +96,9 @@ public class BookingController {
      * {@code INVALID_CANCELLATION} / {@code LATE_CANCELLATION} per {@link com.booking.service.BookingService#cancel(Long)}.
      */
     @PostMapping("/bookings/{id}/cancel")
-    public BookingResponse cancel(@PathVariable Long id) {
-        return bookingService.cancel(id);
+    public BookingResponse cancel(
+            @PathVariable Long id, @RequestHeader(CustomerIdentity.HEADER) String customerPhone) {
+        return bookingService.cancel(id, customerPhone);
     }
 
     /**

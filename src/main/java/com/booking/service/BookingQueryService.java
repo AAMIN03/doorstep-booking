@@ -44,12 +44,13 @@ public class BookingQueryService {
      */
     @Transactional(readOnly = true)
     public PageResponse<BookingResponse> listByCustomerPhone(
+            String customerPhoneHeader,
             String phone,
             BookingStatus status,
             LocalDate startDate,
             LocalDate endDate,
             Pageable pageable) {
-        PhoneNumberValidator.requireValid(phone);
+        PhoneNumberValidator.requireHeaderMatchesQueryPhone(customerPhoneHeader, phone);
         if (startDate != null && endDate != null && endDate.isBefore(startDate)) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,

@@ -7,6 +7,7 @@ import com.booking.enums.BookingStatus;
 import com.booking.exception.ApiException;
 import com.booking.exception.ErrorCode;
 import com.booking.repository.BookingRepository;
+import com.booking.validation.PhoneNumberValidator;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HexFormat;
@@ -38,12 +39,14 @@ public class BookingService {
         this.mapper = mapper;
     }
 
+    /**
+     * Returns a booking only when {@code customerPhone} matches the stored {@code customerPhone}
+     * (same 404 as unknown id when it does not).
+     */
     @Transactional(readOnly = true)
-    public BookingResponse getBooking(Long id) {
-        BookingEntity booking = bookingRepository
-                .findDetailedById(id)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorCode.UNKNOWN_BOOKING, "Booking not found"));
-        return mapper.toResponse(booking);
+    public BookingResponse getBooking(Long id, String customerPhone) {
+        PhoneNumberValidator.requireValidCustomerHeader(customerPhone);
+        return mapper.toResponse(requireBookingOwnedBy(id, customerPhone, false));
     }
 
     public BookingResult create(String idempotencyKey, CreateBookingRequest request) {
@@ -86,10 +89,9 @@ public class BookingService {
      *     {@link ErrorCode#INVALID_CANCELLATION} or {@link ErrorCode#LATE_CANCELLATION}
      */
     @Transactional
-    public BookingResponse cancel(Long bookingId) {
-        BookingEntity booking = bookingRepository
-                .findDetailedByIdForUpdate(bookingId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorCode.UNKNOWN_BOOKING, "Booking not found"));
+    public BookingResponse cancel(Long bookingId, String customerPhone) {
+        PhoneNumberValidator.requireValidCustomerHeader(customerPhone);
+        BookingEntity booking = requireBookingOwnedBy(bookingId, customerPhone, true);
         if (booking.getStatus() == BookingStatus.CANCELLED) {
             throw new ApiException(HttpStatus.CONFLICT, ErrorCode.INVALID_CANCELLATION, "Booking already cancelled");
         }
@@ -101,6 +103,17 @@ public class BookingService {
         }
         booking.setStatus(BookingStatus.CANCELLED);
         return mapper.toResponse(booking);
+    }
+
+    private BookingEntity requireBookingOwnedBy(Long id, String customerPhone, boolean forUpdate) {
+        BookingEntity booking = (forUpdate
+                        ? bookingRepository.findDetailedByIdForUpdate(id)
+                        : bookingRepository.findDetailedById(id))
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorCode.UNKNOWN_BOOKING, "Booking not found"));
+        if (!booking.getCustomerPhone().equals(customerPhone)) {
+            throw new ApiException(HttpStatus.NOT_FOUND, ErrorCode.UNKNOWN_BOOKING, "Booking not found");
+        }
+        return booking;
     }
 
     static String hash(CreateBookingRequest request) {
