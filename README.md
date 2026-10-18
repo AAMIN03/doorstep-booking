@@ -171,12 +171,13 @@ Schedule body: `{ "technicianId", "date", "bookings": { "content", "page", "size
 
 These rules are enforced in code (`SchedulingRules`, `BookingTxService`, seed data). See `DESIGN.md` for concurrency and scale discussion.
 
-### Time and locale
+### Time and locale (IST only)
 
-- Business timezone: **Asia/Kolkata (IST)**.
-- API datetimes use an explicit offset (e.g. `+05:30`).
-- `start_time` / `end_time` persisted in **UTC** in MySQL.
-- Technician shifts: **minutes from midnight** IST.
+- **Single timezone:** **Asia/Kolkata (IST)** for all business rules, query dates (`date`, `startDate`, `endDate`), shifts, and API datetimes.
+- **Requests:** `startTime` on create must use **`+05:30`** or **`Asia/Kolkata`**; other zones (e.g. `Z`) → **400** `VALIDATION_ERROR`.
+- **Responses:** booking and slot times are returned in IST (`+05:30`); error `timestamp` is IST.
+- **Storage:** `start_time` / `end_time` in MySQL are **UTC instants** (internal); clients always think in IST.
+- Technician shifts: **minutes from midnight** IST wall-clock.
 
 ### Slots and horizon
 
@@ -213,10 +214,8 @@ These rules are enforced in code (`SchedulingRules`, `BookingTxService`, seed da
 
 ## Timezone policy
 
-(Same as assumptions; kept for quick reference.)
-
-- Business rules: **Asia/Kolkata**.
-- Storage: UTC instants; API: zoned ISO-8601 with offset.
+- **IST everywhere at the API boundary** (`TimeService`, `spring.jackson.time-zone=Asia/Kolkata`, `Clock` in IST).
+- **UTC in the database** only — not exposed as a client-facing zone.
 
 ---
 

@@ -15,6 +15,6 @@ public class TestClockConfig {
     @Bean
     @Primary
     Clock testClock() {
-        return Clock.fixed(FIXED_INSTANT, ZoneId.of("UTC"));
+        return Clock.fixed(FIXED_INSTANT, ZoneId.of("Asia/Kolkata"));
     }
 }

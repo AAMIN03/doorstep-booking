@@ -446,6 +446,21 @@ class BookingApiIntegrationTest {
     }
 
     @Test
+    void createBookingRejectsNonIstStartTime() throws Exception {
+        String body = """
+                {"customerPhone":"9876543210","serviceId":1,"pincode":"400001","startTime":"2026-10-20T10:00:00Z"}
+                """;
+        expectApiError(
+                mockMvc.perform(post("/bookings").header("Idempotency-Key", "bad-tz")
+                        .contentType(MediaType.APPLICATION_JSON).content(body)),
+                400,
+                "BAD_REQUEST",
+                "VALIDATION_ERROR",
+                "Field 'startTime': must use IST (Asia/Kolkata or +05:30)",
+                "/bookings");
+    }
+
+    @Test
     void assignsTechnicianWithFewerBookingsAndTieBreaksById() throws Exception {
         MvcResult first = mockMvc
                 .perform(post("/bookings").header("Idempotency-Key", "assign-a").contentType(MediaType.APPLICATION_JSON)
