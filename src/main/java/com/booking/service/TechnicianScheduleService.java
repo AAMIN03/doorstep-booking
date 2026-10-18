@@ -7,6 +7,8 @@ import com.booking.exception.ApiException;
 import com.booking.exception.ErrorCode;
 import com.booking.repository.TechnicianRepository;
 import java.time.LocalDate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -14,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class TechnicianScheduleService {
+
+    private static final Logger log = LoggerFactory.getLogger(TechnicianScheduleService.class);
 
     private final TechnicianRepository technicianRepository;
     private final BookingQueryService bookingQueryService;
@@ -40,6 +44,8 @@ public class TechnicianScheduleService {
         }
         PageResponse<com.booking.dto.BookingResponse> page = bookingQueryService.technicianSchedule(technicianId, date,
                 startDate, endDate, status, pageable);
+        log.debug("Technician schedule id={} date={} status={} total={}", technicianId, date, status,
+                page.totalElements());
         return new ScheduleResponse(technicianId, date, page);
     }
 }

@@ -8,6 +8,11 @@
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
             <customFields>{"service":"${APP_NAME}"}</customFields>
             <includeMdc>true</includeMdc>
+            <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
+                <maxDepthPerThrowable>200</maxDepthPerThrowable>
+                <shortenedClassNameLength>full</shortenedClassNameLength>
+                <rootCauseFirst>true</rootCauseFirst>
+            </throwableConverter>
             <fieldNames>
                 <timestamp>@timestamp</timestamp>
                 <version>[ignore]</version>
@@ -15,6 +20,8 @@
             </fieldNames>
         </encoder>
     </appender>
+
+    <logger name="com.booking" level="DEBUG"/>
 
     <root level="INFO">
         <appender-ref ref="CONSOLE_JSON"/>

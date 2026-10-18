@@ -8,6 +8,8 @@ import com.booking.exception.ApiException;
 import com.booking.exception.ErrorCode;
 import com.booking.repository.BookingRepository;
 import com.booking.validation.PhoneNumberValidator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -25,6 +27,8 @@ import org.springframework.transaction.annotation.Transactional;
 /** Read-only booking search and pagination (by customer phone, technician schedule). */
 @Service
 public class BookingQueryService {
+
+    private static final Logger log = LoggerFactory.getLogger(BookingQueryService.class);
 
     private final BookingRepository bookingRepository;
     private final BookingMapper mapper;
@@ -54,8 +58,11 @@ public class BookingQueryService {
         }
         Instant startInclusive = startDate != null ? timeService.istToUtc(startDate, LocalTime.MIN) : null;
         Instant endExclusive = endDate != null ? timeService.istToUtc(endDate.plusDays(1), LocalTime.MIN) : null;
-        return loadPage(bookingRepository.findIdsByCustomerPhone(phone, status, startInclusive, endExclusive, pageable),
+        PageResponse<BookingResponse> page = loadPage(
+                bookingRepository.findIdsByCustomerPhone(phone, status, startInclusive, endExclusive, pageable),
                 pageable);
+        log.debug("List bookings phone={} status={} total={}", phone, status, page.totalElements());
+        return page;
     }
 
     /**

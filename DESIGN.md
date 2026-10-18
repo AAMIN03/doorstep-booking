@@ -176,7 +176,7 @@ Tests: `GlobalExceptionHandlerTest`, `BookingApiIntegrationTest` (errors, cancel
 
 ### D. Logging and request correlation
 
-JSON logs: `logback-spring.xml` + Logstash encoder. `RequestIdFilter`: `X-Request-Id`, MDC `requestId`. Tests: `RequestIdFilterTest`, `RequestIdFilterWebMvcTest`, `ActuatorHealthMockMvcTest` (`/actuator/health`).
+JSON logs: `logback-spring.xml` + Logstash encoder. `com.booking` is DEBUG so service decision logs print. `RequestIdFilter`: `X-Request-Id`, MDC `requestId`. `ApiAccessLogFilter` logs availability, create, get, and cancel with that `requestId` plus request and response bodies. `GlobalExceptionHandler` logs every mapped exception: WARN for 4xx and ERROR for 5xx, with the throwable last so `stack_trace` is present. Tests: `RequestIdFilterTest`, `RequestIdFilterWebMvcTest`, `ApiAccessLogFilterTest`, `ActuatorHealthMockMvcTest` (`/actuator/health`).
 
 ### E. Rate limiting
 

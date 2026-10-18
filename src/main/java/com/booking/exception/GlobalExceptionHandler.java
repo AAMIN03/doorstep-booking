@@ -6,6 +6,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import java.time.ZonedDateTime;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -25,6 +27,8 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
     private final TimeService timeService;
 
     public GlobalExceptionHandler(TimeService timeService) {
@@ -33,6 +37,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<ErrorResponse> handleApi(ApiException ex, HttpServletRequest req) {
+        logFailure(ex, ex.getStatus());
         return body(ex.getStatus(), ex.getCode(), ex.getMessage(), req.getRequestURI());
     }
 
@@ -40,17 +45,20 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException ex, HttpServletRequest req) {
         String msg = ex.getBindingResult().getFieldErrors().stream().findFirst()
                 .map(f -> fieldMessage(f.getField(), f.getDefaultMessage())).orElse("Request body failed validation");
+        logFailure(ex, HttpStatus.BAD_REQUEST);
         return body(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR, msg, req.getRequestURI());
     }
 
     @ExceptionHandler(MissingRequestHeaderException.class)
     public ResponseEntity<ErrorResponse> handleMissingHeader(MissingRequestHeaderException ex, HttpServletRequest req) {
+        logFailure(ex, HttpStatus.BAD_REQUEST);
         return body(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR, headerRequired(ex.getHeaderName()),
                 req.getRequestURI());
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleUnreadable(HttpMessageNotReadableException ex, HttpServletRequest req) {
+        logFailure(ex, HttpStatus.BAD_REQUEST);
         return body(HttpStatus.BAD_REQUEST, ErrorCode.MALFORMED_REQUEST, "Request body is malformed or unreadable",
                 req.getRequestURI());
     }
@@ -59,6 +67,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex,
             HttpServletRequest req) {
         String detail = ex.getValue() != null ? "invalid value '" + ex.getValue() + "'" : "invalid value";
+        logFailure(ex, HttpStatus.BAD_REQUEST);
         return body(HttpStatus.BAD_REQUEST, ErrorCode.INVALID_PARAMETER, parameterMessage(ex.getName(), detail),
                 req.getRequestURI());
     }
@@ -66,6 +75,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<ErrorResponse> handleMissingParameter(MissingServletRequestParameterException ex,
             HttpServletRequest req) {
+        logFailure(ex, HttpStatus.BAD_REQUEST);
         return body(HttpStatus.BAD_REQUEST, ErrorCode.INVALID_PARAMETER,
                 parameterMessage(ex.getParameterName(), "is required"), req.getRequestURI());
     }
@@ -75,17 +85,20 @@ public class GlobalExceptionHandler {
             HttpServletRequest req) {
         String msg = ex.getConstraintViolations().stream().findFirst().map(GlobalExceptionHandler::constraintMessage)
                 .orElse("Request parameter failed validation");
+        logFailure(ex, HttpStatus.BAD_REQUEST);
         return body(HttpStatus.BAD_REQUEST, ErrorCode.INVALID_PARAMETER, msg, req.getRequestURI());
     }
 
     @ExceptionHandler(PessimisticLockingFailureException.class)
     public ResponseEntity<ErrorResponse> handleLocking(PessimisticLockingFailureException ex, HttpServletRequest req) {
+        logFailure(ex, HttpStatus.CONFLICT);
         return body(HttpStatus.CONFLICT, ErrorCode.CONFLICT, "Booking temporarily contended, please retry",
                 req.getRequestURI());
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleOther(Exception ex, HttpServletRequest req) {
+        logFailure(ex, HttpStatus.INTERNAL_SERVER_ERROR);
         return body(HttpStatus.INTERNAL_SERVER_ERROR, ErrorCode.INTERNAL_ERROR, "Unexpected error",
                 req.getRequestURI());
     }
@@ -105,6 +118,15 @@ public class GlobalExceptionHandler {
     private static String constraintMessage(ConstraintViolation<?> violation) {
         String path = violation.getPropertyPath() != null ? violation.getPropertyPath().toString() : "request";
         return parameterMessage(path, violation.getMessage());
+    }
+
+    /** WARN for client failures and ERROR for 5xx. The throwable is last so the JSON log includes stack_trace. */
+    private static void logFailure(Exception ex, HttpStatus status) {
+        if (status.is5xxServerError()) {
+            log.error("Request failed with status {}", status.value(), ex);
+        } else {
+            log.warn("Request failed with status {}", status.value(), ex);
+        }
     }
 
     private ResponseEntity<ErrorResponse> body(HttpStatus status, ErrorCode code, String message, String path) {

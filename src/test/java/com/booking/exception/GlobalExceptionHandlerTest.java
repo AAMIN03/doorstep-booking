@@ -15,12 +15,14 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.lang.reflect.Method;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -30,7 +32,12 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.core.MethodParameter;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 
 /** Unit tests for {@link GlobalExceptionHandler} status, {@link ErrorCode}, and message conventions. */
 @ExtendWith(MockitoExtension.class)
@@ -90,7 +97,7 @@ class GlobalExceptionHandlerTest {
         HttpServletRequest req = request("/bookings");
         BeanPropertyBindingResult binding = new BeanPropertyBindingResult(new Object(), "request");
         binding.addError(new FieldError("request", "customerPhone", "must be a valid Indian mobile number"));
-        MethodArgumentNotValidException ex = new MethodArgumentNotValidException(null, binding);
+        MethodArgumentNotValidException ex = new MethodArgumentNotValidException(methodParameter(), binding);
 
         ResponseEntity<ErrorResponse> response = handler.handleValidation(ex, req);
 
@@ -102,7 +109,7 @@ class GlobalExceptionHandlerTest {
     @Test
     void missingHeaderUsesHeaderMessageConvention() {
         HttpServletRequest req = request("/bookings");
-        MissingRequestHeaderException ex = new MissingRequestHeaderException("Idempotency-Key", null);
+        MissingRequestHeaderException ex = new MissingRequestHeaderException("Idempotency-Key", methodParameter());
 
         ResponseEntity<ErrorResponse> response = handler.handleMissingHeader(ex, req);
 
@@ -158,6 +165,64 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertErrorBody(response.getBody(), 400, "BAD_REQUEST", "INVALID_PARAMETER",
                 "Parameter 'pincode': must match pattern", "/availability");
+    }
+
+    @Test
+    void clientFailureIsLoggedAtWarnWithStackTrace() {
+        ListAppender<ILoggingEvent> events = captureLogs();
+        try {
+            handler.handleApi(new ApiException(HttpStatus.NOT_FOUND, ErrorCode.UNKNOWN_BOOKING, "Booking not found"),
+                    request("/bookings/1"));
+            assertStackTrace(events, Level.WARN);
+        } finally {
+            detach(events);
+        }
+    }
+
+    @Test
+    void unexpectedFailureIsLoggedAtErrorWithStackTrace() {
+        ListAppender<ILoggingEvent> events = captureLogs();
+        try {
+            handler.handleOther(new RuntimeException("boom"), request("/bookings"));
+            assertStackTrace(events, Level.ERROR);
+        } finally {
+            detach(events);
+        }
+    }
+
+    private static ListAppender<ILoggingEvent> captureLogs() {
+        Logger logger = (Logger) LoggerFactory.getLogger(GlobalExceptionHandler.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        logger.setLevel(Level.WARN);
+        return appender;
+    }
+
+    private static void detach(ListAppender<ILoggingEvent> appender) {
+        Logger logger = (Logger) LoggerFactory.getLogger(GlobalExceptionHandler.class);
+        logger.detachAppender(appender);
+    }
+
+    private static void assertStackTrace(ListAppender<ILoggingEvent> events, Level level) {
+        assertThat(events.list).isNotEmpty();
+        ILoggingEvent event = events.list.get(events.list.size() - 1);
+        assertThat(event.getLevel()).isEqualTo(level);
+        assertThat(event.getThrowableProxy()).isNotNull();
+        assertThat(event.getThrowableProxy().getStackTraceElementProxyArray()).isNotEmpty();
+    }
+
+    private static MethodParameter methodParameter() {
+        try {
+            Method method = GlobalExceptionHandlerTest.class.getDeclaredMethod("sample", String.class);
+            return new MethodParameter(method, 0);
+        } catch (NoSuchMethodException ex) {
+            throw new IllegalStateException(ex);
+        }
+    }
+
+    @SuppressWarnings("unused")
+    private static void sample(String body) {
     }
 
     private static HttpServletRequest request(String uri) {

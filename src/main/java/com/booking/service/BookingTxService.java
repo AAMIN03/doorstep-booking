@@ -21,12 +21,16 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class BookingTxService {
+
+    private static final Logger log = LoggerFactory.getLogger(BookingTxService.class);
 
     private final ServiceRepository serviceRepository;
     private final ZonePincodeRepository zonePincodeRepository;
@@ -69,6 +73,8 @@ public class BookingTxService {
 
         List<TechnicianEntity> eligible = technicianRepository.findEligible(zp.getZone().getId(),
                 service.getRequiredSkill());
+        log.debug("Create booking serviceId={} pincode={} start={} eligibleTechnicians={}", request.serviceId(),
+                request.pincode(), start, eligible.size());
         if (eligible.isEmpty()) {
             throw new ApiException(HttpStatus.CONFLICT, ErrorCode.NO_TECHNICIAN_AVAILABLE,
                     "No technician is available for the requested slot.");
@@ -87,6 +93,7 @@ public class BookingTxService {
             throw new ApiException(HttpStatus.CONFLICT, ErrorCode.NO_TECHNICIAN_AVAILABLE,
                     "No technician is available for the requested slot.");
         }
+        log.debug("Assigned technicianId={} for pincode={} start={}", chosen.getId(), request.pincode(), start);
 
         BookingEntity booking = new BookingEntity();
         booking.setCustomerPhone(request.customerPhone());

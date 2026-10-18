@@ -287,6 +287,9 @@ Message patterns: `Field '…'`, `Parameter '…'`, `Header '…' is required` �
 
 - **JSON logs** via `logback-spring.xml` + Logstash encoder.
 - **`X-Request-Id`**: client may send; otherwise UUID; echoed on response; MDC key `requestId`.
+- **Access log** for `GET /availability`, `POST /bookings`, `GET /bookings`, `GET /bookings/{id}`, and `POST /bookings/{id}/cancel`. One JSON line per call with `requestId`, `httpMethod`, `path`, `query`, `status`, `requestBody`, and `responseBody`.
+- **Service debug logs** (`com.booking` at DEBUG): assignment, availability counts, idempotent replay, list, and schedule totals.
+- **WARN and ERROR include `stack_trace`**. Client failures (4xx) are WARN. Unexpected failures (5xx) are ERROR. The Redis connection failure is WARN with the exception.
 
 ---
 

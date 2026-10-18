@@ -11,6 +11,8 @@ import com.booking.validation.PhoneNumberValidator;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HexFormat;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
@@ -19,6 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class BookingService {
+
+    private static final Logger log = LoggerFactory.getLogger(BookingService.class);
 
     private final BookingRepository bookingRepository;
     private final BookingTxService bookingTxService;
@@ -42,22 +46,26 @@ public class BookingService {
     @Transactional(readOnly = true)
     public BookingResponse getBooking(Long id, String customerPhone) {
         PhoneNumberValidator.requireValidCustomerHeader(customerPhone);
-        return mapper.toResponse(requireBookingOwnedBy(id, customerPhone, false));
+        BookingResponse response = mapper.toResponse(requireBookingOwnedBy(id, customerPhone, false));
+        log.debug("Get booking id={} status={}", response.id(), response.status());
+        return response;
     }
 
     public BookingResult create(String idempotencyKey, CreateBookingRequest request) {
         String hash = hash(request);
         BookingResult cached = idempotencyService.findResult(idempotencyKey, hash);
         if (cached != null) {
+            log.debug("Idempotent replay key={} bookingId={}", idempotencyKey, cached.response().id());
             return cached;
         }
         try {
             return bookingTxService.create(idempotencyKey, request, hash);
         } catch (DataIntegrityViolationException ex) {
+            log.debug("Idempotency key {} already inserted, waiting for the original booking", idempotencyKey);
             return waitForIdempotentResult(idempotencyKey, hash);
         } catch (PessimisticLockingFailureException ex) {
             throw new ApiException(HttpStatus.CONFLICT, ErrorCode.CONFLICT,
-                    "Booking temporarily contended, please retry");
+                    "Booking temporarily contended, please retry", ex);
         }
     }
 
@@ -71,6 +79,7 @@ public class BookingService {
                 Thread.sleep(25);
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
+                log.warn("Interrupted while waiting for idempotent booking key={}", key, ex);
                 break;
             }
         }
@@ -101,6 +110,7 @@ public class BookingService {
                     "Cancellation must be at least 1 hour before start");
         }
         booking.setStatus(BookingStatus.CANCELLED);
+        log.debug("Cancelled booking id={}", bookingId);
         return mapper.toResponse(booking);
     }
 

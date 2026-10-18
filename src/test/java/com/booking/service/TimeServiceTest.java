@@ -31,12 +31,10 @@ class TimeServiceTest {
     @Test
     void rejectsNonIstZone() {
         ZonedDateTime utc = ZonedDateTime.of(2026, 10, 20, 10, 0, 0, 0, ZoneOffset.UTC);
-        assertThatThrownBy(() -> timeService.toUtcInstant(utc))
-                .isInstanceOf(ApiException.class)
-                .satisfies(ex -> {
-                    ApiException api = (ApiException) ex;
-                    assertThat(api.getCode()).isEqualTo(ErrorCode.VALIDATION_ERROR);
-                    assertThat(api.getMessage()).contains("must use IST");
-                });
+        assertThatThrownBy(() -> timeService.toUtcInstant(utc)).isInstanceOf(ApiException.class).satisfies(ex -> {
+            ApiException api = (ApiException) ex;
+            assertThat(api.getCode()).isEqualTo(ErrorCode.VALIDATION_ERROR);
+            assertThat(api.getMessage()).contains("must use IST");
+        });
     }
 }

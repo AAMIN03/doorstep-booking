@@ -25,7 +25,8 @@ public class TimeService {
     /**
      * Converts an API {@code ZonedDateTime} to UTC for storage after verifying IST zone/offset.
      *
-     * @throws ApiException 400 {@link ErrorCode#VALIDATION_ERROR} if not IST
+     * @throws ApiException
+     *             400 {@link ErrorCode#VALIDATION_ERROR} if not IST
      */
     public Instant toUtcInstant(ZonedDateTime zoned) {
         requireIst(zoned, "startTime");
@@ -37,8 +38,8 @@ public class TimeService {
      */
     public void requireIst(ZonedDateTime zoned, String fieldName) {
         if (zoned == null) {
-            throw new ApiException(
-                    HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR, "Field '" + fieldName + "': is required");
+            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR,
+                    "Field '" + fieldName + "': is required");
         }
         ZoneId zone = zoned.getZone();
         if (zone.equals(ZONE)) {
@@ -47,9 +48,7 @@ public class TimeService {
         if (zone instanceof ZoneOffset offset && offset.equals(IST_OFFSET)) {
             return;
         }
-        throw new ApiException(
-                HttpStatus.BAD_REQUEST,
-                ErrorCode.VALIDATION_ERROR,
+        throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR,
                 "Field '" + fieldName + "': must use IST (Asia/Kolkata or +05:30)");
     }
 
