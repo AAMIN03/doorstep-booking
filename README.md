@@ -81,10 +81,45 @@ Tests disable Redis rate limiting via `src/test/resources/application.properties
 | Scheduling rules and assignment | `SchedulingRulesTest`, `BookingAssignmentTest` |
 | Error JSON | `GlobalExceptionHandlerTest`, `BookingApiIntegrationTest` |
 | Booking / cancel / list / schedule | `BookingApiIntegrationTest` |
-| Concurrency / locks | `BookingConcurrencyIntegrationTest` |
+| Concurrency / locks | `BookingConcurrencyIntegrationTest` (see [Concurrency live check](#concurrency-live-check)) |
 | Request ID | `RequestIdFilterTest`, `RequestIdFilterWebMvcTest` |
 | Rate limit 429 | `RateLimitFilterTest`, `RateLimitFilterWebMvcTest` |
 | Actuator health | `ActuatorHealthMockMvcTest` |
+
+---
+
+## Concurrency live check
+
+Two ways to watch two `POST /bookings` calls race for the same technician. Docker must be running for the Testcontainers test. The script needs the API from [How to run](#how-to-run) already up on port 8080.
+
+### Testcontainers
+
+`BookingConcurrencyIntegrationTest` starts MySQL 8.4 in Docker, applies the Flyway migrations, and sends overlapping creates through the API. In the log, look for the MySQL container starting, then the four cases:
+
+- same slot, different idempotency keys → one **201**, one **409**
+- same idempotency key → one booking, the other call returns that same id
+- adjacent slots inside the travel buffer → one **201**, one **409**
+- non-overlapping slots → both **201**, different technicians
+
+```bash
+./mvnw test -Dtest=BookingConcurrencyIntegrationTest
+```
+
+### Script
+
+`scripts/concurrent-bookings.sh` fires two curls at the same time. Both use the same JSON body and a different `Idempotency-Key`. Pincode `400058` and service `1` (battery replacement) have one technician, so the calls contend for that slot.
+
+```bash
+./scripts/concurrent-bookings.sh
+```
+
+Expect one **201** and one **409**. The default `startTime` is tomorrow at 15:00 IST. Run the same time again and both return **409**, because that slot is already taken. Pick another slot with:
+
+```bash
+START_TIME='2026-10-21T15:00:00+05:30' ./scripts/concurrent-bookings.sh
+```
+
+`startTime` must use `+05:30` and fall between 2 hours and 7 days from now. `BASE_URL` overrides the host (default `http://localhost:8080`).
 
 ---
 
