@@ -149,6 +149,19 @@ Already in place: idempotency, structured logs + `X-Request-Id`, Redis rate limi
 
 ---
 
+### 7. Failure
+
+**Dependency down or slow.** The booking write fails with MySQL. Reads and notifications may lag; they must not confirm a booking the primary did not commit.
+
+1. **MySQL down or slow** — `POST /bookings` fails (timeout or 5xx). No technician is assigned from memory. `GET /availability` is meant to keep answering from the short-TTL Redis cache in §3, so a customer can still see a slot list that is already stale. That cache is not built, so today availability fails with the database too.
+2. **Lock contention and deadlocks** — overlapping creates wait on the same `SELECT … FOR UPDATE` rows. A deadlock or lock-wait timeout becomes HTTP 409 with a retry message. One transaction committed; the other did not double-book. A Monday spike shows up as 409s and a higher p99, which is the signal in §2 to narrow the locks.
+3. **SMS / WhatsApp / push down or slow** — the provider is not called inside the booking transaction. §4 writes a `PENDING` outbox row in that same transaction, returns 201, and a worker retries with backoff until `SENT` or `FAILED`. A provider error never rolls the booking back. Duplicate sends are avoided with a dedupe key per booking and channel.
+4. **Replica lag** — a replica can still show a technician as free after the primary has confirmed the job. Creates stay on the primary and re-check under locks, so the stale read cannot commit a double-book; `POST` returns no technician or 409. History and schedule are the reads that may move to replicas. Availability should not, unless the caller accepts the same stale-slot window as the cache.
+
+**Not built yet:** the transactional outbox and its retries (§4 is the design only). The availability cache those stale Redis reads depend on is also not built. There is no soft hold, so a slot shown to the customer can disappear before `POST`.
+
+---
+
 ## Appendix — Implementation reference
 
 ### A. Concurrency (code map)

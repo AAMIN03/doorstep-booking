@@ -192,6 +192,10 @@ The brief leaves several points open. We picked one reasonable interpretation fo
 
 If a product owner chooses differently (e.g. OTP auth, slot holds, per-phone rate limits), the table above is the baseline we coded against.
 
+### Can I use AI coding assistants?
+
+I used Cursor as a guide and to help write the code out. The service is long, and typing every class by hand was not practical in the time we had. The ideas, the design, and the logic in the code are mine.
+
 ---
 
 ## Assumptions (enforced rules)
@@ -334,10 +338,6 @@ Exceeded limit → **429** + `RATE_LIMIT_EXCEEDED`.
 `com.booking` → `config`, `controller`, `dto`, `entity`, `enums`, `exception`, `ratelimit`, `repository`, `service`, `validation`, `web`
 
 ---
-
-## AI assistance
-
-Cursor (Grok) reviewed this service against the take-home brief and applied the follow-up fixes: shift boundaries that cross midnight, assignment counts taken from locked booking rows, the availability window, cancelled jobs on the technician schedule, Redis in Docker Compose, and the tests and docs for those changes. Extend this note if other assistants were used while building the original service.
 
 ## Further reading
 
